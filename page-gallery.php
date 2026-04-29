@@ -64,7 +64,6 @@ $this->need('header.php');
             echo '<strong>画廊数据加载失败：</strong> 请确保在编辑器正文中填写了合法的 JSON 数组。';
             echo '</div>';
             echo '<code>[<br>  {<br>    "src": "https://example.com/photo.jpg",<br>    "title": "落日余晖",<br>    "desc": "在海边散步时拍下的美丽夕阳。",<br>    "date": "2025-10-01"<br>  }<br>]</code>';
-            echo '</div>';
         }
         ?>
     </div>
