@@ -73,59 +73,6 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         });
     });
-    document.addEventListener('DOMContentLoaded', function() {
-    const commentForm = document.querySelector('form[action*="comment"]');
-    if (!commentForm) return;
-
-    commentForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const btn = document.getElementById('submit-comment-btn');
-        const originalText = btn.innerText;
-        
-        // 禁用按钮防连击
-        btn.disabled = true;
-        btn.innerText = '提交中...';
-
-        try {
-            const response = await fetch(commentForm.action, {
-                method: 'POST',
-                body: new FormData(commentForm),
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-
-            if (response.status === 403) {
-                const err = await response.json();
-                alert(err.msg);
-                if (window.turnstile) turnstile.reset(); // 失败则重置验证码
-            } else if (response.ok) {
-                // 成功：解析 HTML 并局部刷新评论列表
-                const html = await response.text();
-                const newDoc = new DOMParser().parseFromString(html, 'text/html');
-                const newList = newDoc.querySelector('.comment-list');
-                const currentList = document.querySelector('.comment-list');
-                
-                if (newList && currentList) {
-                    currentList.innerHTML = newList.innerHTML;
-                } else {
-                    window.location.reload(); // 兜底刷新
-                    return;
-                }
-
-                commentForm.querySelector('textarea').value = '';
-                if (window.turnstile) turnstile.reset();
-                alert('评论发送成功！');
-            } else {
-                alert('服务器繁忙，请重试。');
-            }
-        } catch (e) {
-            alert('网络请求失败。');
-        } finally {
-            btn.disabled = false;
-            btn.innerText = originalText;
-        }
-    });
-});
 </script>
 
 </body>
