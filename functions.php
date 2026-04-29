@@ -145,6 +145,12 @@ function themeConfig($form)
         _t('在这里填入你的自定义 CSS (需包含 &lt;style&gt; 标签) 或 JS 脚本 (需包含 &lt;script&gt; 标签)，代码会输出在 &lt;head&gt; 标签结束前。')
     );
     $form->addInput($customHeadCode);
+
+    //CF 验证码设置
+    $turnstile = new \Typecho\Widget\Helper\Form\Element\Radio('turnstile', ['off' => '关闭', 'on' => '开启'], 'off', 'Turnstile 验证码', '开启后评论区将启用 Cloudflare 人机验证');
+    $form->addInput($turnstile);
+    $form->addInput(new \Typecho\Widget\Helper\Form\Element\Text('turnstileSiteKey', NULL, NULL, 'Turnstile Site Key'));
+    $form->addInput(new \Typecho\Widget\Helper\Form\Element\Text('turnstileSecretKey', NULL, NULL, 'Turnstile Secret Key'));
 }
 
 
@@ -295,3 +301,47 @@ function getPostThumb($obj) {
     return Helper::options()->themeUrl . '/img/bg_watermark.jpg';
 
 }
+
+\Typecho\Plugin::factory('Widget_Feedback')->comment = function($comment, $post) {
+    $options = \Helper::options();
+    if ($options->turnstile == 'on' && $options->turnstileSecretKey) {
+        
+        // 自动识别 AJAX 请求的报错函数
+        $throwError = function($msg) {
+            $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+            if ($isAjax) {
+                header('HTTP/1.1 403 Forbidden');
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['status' => 'error', 'msg' => $msg]);
+                exit;
+            } else {
+                echo '<script>alert("' . $msg . '"); history.back();</script>';
+                exit;
+            }
+        };
+
+        $token = $_POST['cf-turnstile-response'] ?? '';
+        if (empty($token)) $throwError("请完成人机验证！");
+        
+        // 发送给 Cloudflare 进行校验
+        $ch = curl_init('https://challenges.cloudflare.com/turnstile/v0/siteverify');
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
+            'secret' => $options->turnstileSecretKey,
+            'response' => $token,
+            'remoteip' => $_SERVER['REMOTE_ADDR']
+        ]));
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $result = curl_exec($ch);
+        curl_close($ch);
+        
+        if ($result) {
+            $res = json_decode($result, true);
+            if (empty($res['success']) || (isset($res['action']) && $res['action'] !== 'submit_comment')) {
+                $throwError("人机验证失败，请重试！");
+            }
+        } else {
+            $throwError("验证码服务连接超时。");
+        }
+    }
+    return $comment;
+};

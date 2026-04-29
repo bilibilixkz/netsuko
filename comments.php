@@ -56,8 +56,16 @@
                     <textarea rows="5" name="text" id="textarea" class="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal/50 focus:border-teal text-gray-900 dark:text-gray-100 transition-colors resize-y" required><?php $this->remember('text'); ?></textarea>
                 </div>
         
+                <?php if ($this->options->turnstile == 'on' && $this->options->turnstileSiteKey): ?>
+                    <div class="cf-turnstile mt-2 mb-4" 
+                        data-sitekey="<?php $this->options->turnstileSiteKey(); ?>" 
+                        data-theme="auto" 
+                        data-action="submit_comment">
+                    </div>
+                <?php endif; ?>
+
                 <div class="flex justify-end">
-                    <button type="submit" class="px-6 py-2.5 bg-teal text-white font-medium rounded-lg hover:bg-teal/90 transition-colors shadow-sm shadow-teal/30">
+                    <button type="submit" id="submit-comment-btn" class="px-6 py-2.5 bg-teal text-white font-medium rounded-lg hover:bg-teal/90 transition-colors shadow-sm shadow-teal/30">
                         <?php _e('提交评论'); ?>
                     </button>
                 </div>
@@ -67,5 +75,9 @@
         <div class="mt-8 text-center text-gray-500 dark:text-gray-400 py-6 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5">
             <?php _e('评论已关闭'); ?>
         </div>
+    <?php endif; ?>
+    
+    <?php if ($this->options->turnstile == 'on' && $this->options->turnstileSiteKey): ?>
+        <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <?php endif; ?>
 </div>
