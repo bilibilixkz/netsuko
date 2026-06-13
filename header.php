@@ -13,7 +13,7 @@
         ), '', ' - '); ?><?php $this->options->title(); ?></title>
 
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
-    <link rel="stylesheet" href="<?php $this->options->themeUrl('style.css'); ?>?v=2.0">
+    <link rel="stylesheet" href="<?php $this->options->themeUrl('style.css'); ?>?v=1.1.2">
 
     <script>
         tailwind.config = {
@@ -67,7 +67,7 @@
 </head>
 
 
-<body class="min-h-screen flex flex-col font-sans selection:bg-teal/30 selection:text-teal pt-16">
+<body class="min-h-screen flex flex-col font-sans pt-16">
 
 
     <header id="header" class="fixed top-0 left-0 right-0 z-50 bg-white/70 dark:bg-darkBg/70 backdrop-blur-xl border-b border-gray-200/50 dark:border-white/5 transition-colors duration-500">

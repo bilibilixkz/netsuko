@@ -1,6 +1,8 @@
 <?php
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
+\Widget\Feedback::pluginHandle()->comment = 'netsukoVerifyCommentCaptcha';
+
 function themeConfig($form)
 {
     // 基础设置
@@ -145,6 +147,37 @@ function themeConfig($form)
         _t('在这里填入你的自定义 CSS (需包含 &lt;style&gt; 标签) 或 JS 脚本 (需包含 &lt;script&gt; 标签)，代码会输出在 &lt;head&gt; 标签结束前。')
     );
     $form->addInput($customHeadCode);
+
+    $commentCaptchaMode = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'commentCaptchaMode',
+        array(
+            'off' => _t('关闭验证码'),
+            'turnstile' => _t('Cloudflare Turnstile'),
+            'local' => _t('本地算术验证码')
+        ),
+        'off',
+        _t('评论验证码'),
+        _t('选择访客评论提交时使用的验证码方式。已登录作者无需验证码。')
+    );
+    $form->addInput($commentCaptchaMode);
+
+    $turnstileSiteKey = new \Typecho\Widget\Helper\Form\Element\Text(
+        'turnstileSiteKey',
+        NULL,
+        NULL,
+        _t('Turnstile Site Key'),
+        _t('Cloudflare Turnstile 的站点密钥，选择 Turnstile 时必填。')
+    );
+    $form->addInput($turnstileSiteKey);
+
+    $turnstileSecretKey = new \Typecho\Widget\Helper\Form\Element\Text(
+        'turnstileSecretKey',
+        NULL,
+        NULL,
+        _t('Turnstile Secret Key'),
+        _t('Cloudflare Turnstile 的服务端密钥，选择 Turnstile 时必填。')
+    );
+    $form->addInput($turnstileSecretKey);
 }
 
 
@@ -236,6 +269,206 @@ function netsukoLinkify($html) {
         },
         $html
     );
+}
+
+function netsukoCaptchaMode(): string {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $mode = (string) ($options->commentCaptchaMode ?: 'off');
+
+    return in_array($mode, ['off', 'turnstile', 'local'], true) ? $mode : 'off';
+}
+
+function netsukoCommentCaptchaRequired($archive = null): bool {
+    if (\Widget\User::alloc()->hasLogin()) {
+        return false;
+    }
+
+    if ($archive && method_exists($archive, 'allow') && !$archive->allow('comment')) {
+        return false;
+    }
+
+    return netsukoCaptchaMode() !== 'off';
+}
+
+function netsukoCaptchaSecret(): string {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    return defined('__TYPECHO_SECURE_KEY__') ? __TYPECHO_SECURE_KEY__ : (string) $options->title;
+}
+
+function netsukoCaptchaSign(string $payload): string {
+    return hash_hmac('sha256', $payload, netsukoCaptchaSecret());
+}
+
+function netsukoLocalCaptchaChallenge(): array {
+    $left = random_int(2, 9);
+    $right = random_int(2, 9);
+    $expires = time() + 600;
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    $payload = implode('|', [$left, $right, $expires, hash('sha256', $ip)]);
+    $token = base64_encode($payload . '|' . netsukoCaptchaSign($payload));
+
+    return [$left, $right, $token];
+}
+
+function netsukoVerifyLocalCaptchaToken(string $token, int $answer): bool {
+    $decoded = base64_decode($token, true);
+    if ($decoded === false) {
+        return false;
+    }
+
+    $parts = explode('|', $decoded);
+    if (count($parts) !== 5) {
+        return false;
+    }
+
+    [$left, $right, $expires, $ipHash, $signature] = $parts;
+    $payload = implode('|', [$left, $right, $expires, $ipHash]);
+    if (!hash_equals(netsukoCaptchaSign($payload), $signature)) {
+        return false;
+    }
+
+    if ((int) $expires < time()) {
+        return false;
+    }
+
+    $currentIpHash = hash('sha256', $_SERVER['REMOTE_ADDR'] ?? '');
+    if (!hash_equals($currentIpHash, $ipHash)) {
+        return false;
+    }
+
+    return ((int) $left + (int) $right) === $answer;
+}
+
+function netsukoRenderCommentCaptcha($archive): void {
+    if (!netsukoCommentCaptchaRequired($archive)) {
+        return;
+    }
+
+    $mode = netsukoCaptchaMode();
+    $options = \Typecho\Widget::widget('Widget_Options');
+    ?>
+    <div class="netsuko-captcha rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 p-4">
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+            <?php _e('验证'); ?> <span class="text-red-500">*</span>
+        </label>
+
+        <?php if ($mode === 'turnstile'): ?>
+            <?php if ($options->turnstileSiteKey): ?>
+                <div class="cf-turnstile" data-sitekey="<?php echo netsukoEscape($options->turnstileSiteKey); ?>" data-theme="auto"></div>
+            <?php else: ?>
+                <p class="text-sm text-red-500"><?php _e('Turnstile Site Key 尚未配置。'); ?></p>
+            <?php endif; ?>
+        <?php elseif ($mode === 'local'): ?>
+            <?php [$left, $right, $token] = netsukoLocalCaptchaChallenge(); ?>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3" data-netsuko-captcha-mode="local">
+                <span class="text-sm text-gray-600 dark:text-gray-300" data-netsuko-local-question>
+                    <?php echo netsukoEscape($left . ' + ' . $right . ' ='); ?>
+                </span>
+                <input type="hidden" name="netsuko_local_captcha_token" value="<?php echo netsukoEscape($token); ?>" />
+                <input
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    name="netsuko_local_captcha"
+                    class="w-full sm:w-32 px-4 py-2 bg-white dark:bg-darkCard border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal/50 focus:border-teal text-gray-900 dark:text-gray-100 transition-colors"
+                    autocomplete="off"
+                    required
+                />
+            </div>
+        <?php endif; ?>
+    </div>
+    <?php
+}
+
+function netsukoCommentCaptchaFooter($archive): void {
+    if (!netsukoCommentCaptchaRequired($archive) || netsukoCaptchaMode() !== 'turnstile') {
+        return;
+    }
+
+    $options = \Typecho\Widget::widget('Widget_Options');
+    if (!$options->turnstileSiteKey) {
+        return;
+    }
+
+    echo '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>' . PHP_EOL;
+}
+
+function netsukoVerifyCommentCaptcha($comment, $content = null) {
+    if (!netsukoCommentCaptchaRequired($content)) {
+        return $comment;
+    }
+
+    $mode = netsukoCaptchaMode();
+    if ($mode === 'local') {
+        $input = trim((string) ($_POST['netsuko_local_captcha'] ?? ''));
+        $token = trim((string) ($_POST['netsuko_local_captcha_token'] ?? ''));
+
+        if ($input === '' || !ctype_digit($input) || !netsukoVerifyLocalCaptchaToken($token, (int) $input)) {
+            throw new \Typecho\Exception(_t('验证码不正确，请重新输入。'));
+        }
+
+        return $comment;
+    }
+
+    if ($mode === 'turnstile') {
+        $options = \Typecho\Widget::widget('Widget_Options');
+        $secret = trim((string) $options->turnstileSecretKey);
+        $token = trim((string) ($_POST['cf-turnstile-response'] ?? ''));
+
+        if ($secret === '') {
+            throw new \Typecho\Exception(_t('Turnstile Secret Key 尚未配置。'));
+        }
+
+        if ($token === '') {
+            throw new \Typecho\Exception(_t('请先完成人机验证。'));
+        }
+
+        if (!netsukoVerifyTurnstileToken($secret, $token)) {
+            throw new \Typecho\Exception(_t('人机验证失败，请重试。'));
+        }
+    }
+
+    return $comment;
+}
+
+function netsukoVerifyTurnstileToken(string $secret, string $token): bool {
+    $params = [
+        'secret' => $secret,
+        'response' => $token,
+        'remoteip' => $_SERVER['REMOTE_ADDR'] ?? ''
+    ];
+    $payload = http_build_query($params);
+    $endpoint = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+
+    if (function_exists('curl_init')) {
+        $ch = curl_init($endpoint);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 8
+        ]);
+        $response = curl_exec($ch);
+        curl_close($ch);
+    } else {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+                'content' => $payload,
+                'timeout' => 8
+            ]
+        ]);
+
+        $response = @file_get_contents($endpoint, false, $context);
+    }
+    if ($response === false) {
+        return false;
+    }
+
+    $data = json_decode($response, true);
+    return is_array($data) && !empty($data['success']);
 }
 
 

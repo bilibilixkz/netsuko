@@ -28,6 +28,8 @@
             </h3>
         
             <form method="post" action="<?php $this->commentUrl() ?>" id="comment-form" role="form" class="space-y-5">
+                <div id="comment-form-notice" class="netsuko-form-notice" role="alert" aria-live="polite" hidden></div>
+
                 <?php if($this->user->hasLogin()): ?>
                     <p class="text-sm text-gray-600 dark:text-gray-400">
                         <?php _e('登录身份: '); ?>
@@ -56,6 +58,8 @@
                     <textarea rows="5" name="text" id="textarea" class="w-full px-4 py-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal/50 focus:border-teal text-gray-900 dark:text-gray-100 transition-colors resize-y" required><?php $this->remember('text'); ?></textarea>
                 </div>
         
+                <?php netsukoRenderCommentCaptcha($this); ?>
+
                 <div class="flex justify-end">
                     <button type="submit" class="px-6 py-2.5 bg-teal text-white font-medium rounded-lg hover:bg-teal/90 transition-colors shadow-sm shadow-teal/30">
                         <?php _e('提交评论'); ?>
@@ -69,3 +73,78 @@
         </div>
     <?php endif; ?>
 </div>
+
+<?php netsukoCommentCaptchaFooter($this); ?>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('comment-form');
+    if (!form) {
+        return;
+    }
+
+    const notice = document.getElementById('comment-form-notice');
+    const showNotice = function (message) {
+        if (!notice) {
+            return;
+        }
+
+        notice.textContent = message;
+        notice.style.display = 'block';
+        notice.style.border = '1px solid rgba(244, 63, 94, 0.28)';
+        notice.style.background = 'rgba(244, 63, 94, 0.1)';
+        notice.style.color = document.documentElement.classList.contains('dark') ? '#fda4af' : '#9f1239';
+        notice.style.borderRadius = '0.75rem';
+        notice.style.padding = '0.875rem 1rem';
+        notice.style.boxShadow = '0 10px 30px rgba(244, 63, 94, 0.08)';
+        notice.hidden = false;
+        notice.classList.remove('hidden');
+        notice.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    const clearNotice = function () {
+        if (notice) {
+            notice.textContent = '';
+            notice.hidden = true;
+            notice.style.display = 'none';
+            notice.classList.add('hidden');
+        }
+    };
+
+    form.addEventListener('submit', function (event) {
+        clearNotice();
+
+        const localInput = form.querySelector('input[name="netsuko_local_captcha"]');
+        if (localInput) {
+            const value = localInput.value.trim();
+            const question = form.querySelector('[data-netsuko-local-question]');
+            const match = question ? question.textContent.match(/(\d+)\s*\+\s*(\d+)/) : null;
+            const expected = match ? Number(match[1]) + Number(match[2]) : null;
+
+            if (value === '') {
+                event.preventDefault();
+                showNotice('请先完成算术验证码。');
+                localInput.focus();
+                return;
+            }
+
+            if (!/^\d+$/.test(value) || (expected !== null && Number(value) !== expected)) {
+                event.preventDefault();
+                showNotice('验证码答案不正确，请重新计算后再提交。');
+                localInput.focus();
+                localInput.select();
+                return;
+            }
+        }
+
+        const turnstile = form.querySelector('.cf-turnstile');
+        if (turnstile) {
+            const response = form.querySelector('input[name="cf-turnstile-response"]');
+            if (!response || response.value.trim() === '') {
+                event.preventDefault();
+                showNotice('请先完成人机验证。');
+            }
+        }
+    });
+});
+</script>
