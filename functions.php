@@ -2,9 +2,17 @@
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 
 \Widget\Feedback::pluginHandle()->comment = 'netsukoVerifyCommentCaptcha';
+\Widget\Feedback::pluginHandle()->finishComment = 'netsukoHandleCommentMailNotification';
+\Widget\Comments\Edit::pluginHandle()->finishComment = 'netsukoHandleCommentMailNotification';
+\Widget\Comments\Edit::pluginHandle()->mark = 'netsukoHandleCommentStatusMailNotification';
 
 function themeConfig($form)
 {
+    netsukoConfigAdminAssets($form);
+    netsukoConfigVersionChecker($form);
+    netsukoConfigBackupTools($form);
+    netsukoConfigSection($form, '基础资料', '作者信息、阅读字体与默认文章缩略图。');
+
     // 基础设置
     
     $authorName = new \Typecho\Widget\Helper\Form\Element\Text('authorName', null, 'Netsuko', _t('作者显示姓名'), _t('侧边栏名片的名字'));
@@ -28,6 +36,7 @@ function themeConfig($form)
     $form->addInput($defaultThumb);
 
     // Banner与座右铭设置
+    netsukoConfigSection($form, '首页 Banner 与座右铭', '控制首页视觉焦点、座右铭样式和 Banner 展示效果。');
 
     $motto = new \Typecho\Widget\Helper\Form\Element\Text('motto', null, '永远相信美好的事情即将发生', _t('全站座右铭'), _t('显示在首页 Banner 和侧栏名片中'));
     $form->addInput($motto);
@@ -97,6 +106,7 @@ function themeConfig($form)
     $form->addInput($bannerOpacity);
 
     // 侧边栏与自定义链接
+    netsukoConfigSection($form, '社交链接与侧边栏', '维护个人主页、社交账号和侧边栏自定义链接。');
 
     $githubUrl = new \Typecho\Widget\Helper\Form\Element\Text('githubUrl', null, '', _t('GitHub 链接'), _t('填写完整 URL，留空则不显示该图标。'));
     $form->addInput($githubUrl);
@@ -126,6 +136,7 @@ function themeConfig($form)
     $form->addInput($sidebarLinks);
 
     //页脚部分
+    netsukoConfigSection($form, '页脚与站点信息', '备案、RSS 与状态页等站点级链接。');
 
     $icpNum = new \Typecho\Widget\Helper\Form\Element\Text('icpNum', NULL, NULL, _t('ICP 备案号'), _t('例如：XICP备xxxxxx号。填写后会自动在页脚显示并链接到工信部，留空则隐藏。'));
     $form->addInput($icpNum);
@@ -139,6 +150,8 @@ function themeConfig($form)
     $siteStatusUrl = new \Typecho\Widget\Helper\Form\Element\Text('siteStatusUrl', NULL, NULL, _t('Status 页面 URL'), _t('填入你的监控页或状态页链接，留空则页脚不显示 Status 按钮。'));
     $form->addInput($siteStatusUrl);
 
+    netsukoConfigSection($form, '自定义代码', '放置额外的 Head 代码。');
+
     $customHeadCode = new \Typecho\Widget\Helper\Form\Element\Textarea(
         'customHeadCode', 
         NULL, 
@@ -147,6 +160,8 @@ function themeConfig($form)
         _t('在这里填入你的自定义 CSS (需包含 &lt;style&gt; 标签) 或 JS 脚本 (需包含 &lt;script&gt; 标签)，代码会输出在 &lt;head&gt; 标签结束前。')
     );
     $form->addInput($customHeadCode);
+
+    netsukoConfigSection($form, '评论与安全', '访客评论验证码与后续评论通知能力会集中放在这里。');
 
     $commentCaptchaMode = new \Typecho\Widget\Helper\Form\Element\Radio(
         'commentCaptchaMode',
@@ -178,6 +193,594 @@ function themeConfig($form)
         _t('Cloudflare Turnstile 的服务端密钥，选择 Turnstile 时必填。')
     );
     $form->addInput($turnstileSecretKey);
+
+    netsukoConfigSection($form, '评论邮件提醒', '通过 SMTP 发送评论与回复通知，可自定义标题和正文模板。');
+
+    $commentMailEnabled = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'commentMailEnabled',
+        array('off' => _t('关闭'), 'on' => _t('开启')),
+        'off',
+        _t('评论邮件提醒'),
+        _t('开启后根据下方规则向博主和评论者发送通知。')
+    );
+    $form->addInput($commentMailEnabled);
+
+    $commentMailOwnerStatuses = new \Typecho\Widget\Helper\Form\Element\Checkbox(
+        'commentMailOwnerStatuses',
+        array(
+            'approved' => _t('提醒已通过评论'),
+            'waiting' => _t('提醒待审核评论'),
+            'spam' => _t('提醒垃圾评论')
+        ),
+        array('approved', 'waiting'),
+        _t('博主提醒设置'),
+        _t('该选项仅针对博主，访客只发送已通过的评论。')
+    );
+    $form->addInput($commentMailOwnerStatuses);
+
+    $commentMailNotifyOwner = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'commentMailNotifyOwner',
+        array('off' => _t('关闭'), 'on' => _t('开启')),
+        'on',
+        _t('有评论及回复时通知博主'),
+        _t('新评论、新回复或后台审核状态符合上方设置时，向文章作者邮箱发送邮件。')
+    );
+    $form->addInput($commentMailNotifyOwner);
+
+    $commentMailNotifyReplied = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'commentMailNotifyReplied',
+        array('off' => _t('关闭'), 'on' => _t('开启')),
+        'on',
+        _t('评论被回复时通知评论者'),
+        _t('仅当新回复为已通过状态时通知被回复的评论者。')
+    );
+    $form->addInput($commentMailNotifyReplied);
+
+    $commentMailNotifySelf = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'commentMailNotifySelf',
+        array('off' => _t('关闭'), 'on' => _t('开启')),
+        'off',
+        _t('自己回复自己的评论时也通知'),
+        _t('同时针对博主和访客。关闭后，同邮箱或同用户 ID 的自我回复不再发送通知。')
+    );
+    $form->addInput($commentMailNotifySelf);
+
+    $commentMailLogEnabled = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'commentMailLogEnabled',
+        array('off' => _t('关闭'), 'on' => _t('开启')),
+        'off',
+        _t('记录邮件发送日志'),
+        _t('日志写入 usr/uploads/netsuko-mail.log。发送失败不会阻止评论提交。')
+    );
+    $form->addInput($commentMailLogEnabled);
+
+    netsukoConfigSection($form, 'SMTP 发件设置', '配置 SMTP 服务器、认证与发件人信息。');
+
+    $commentMailSmtpHost = new \Typecho\Widget\Helper\Form\Element\Text('commentMailSmtpHost', NULL, NULL, _t('SMTP 服务器'), _t('例如 smtp.example.com。'));
+    $form->addInput($commentMailSmtpHost);
+
+    $commentMailSmtpPort = new \Typecho\Widget\Helper\Form\Element\Text('commentMailSmtpPort', NULL, '465', _t('SMTP 端口'), _t('常见端口：465(SSL)、587(STARTTLS)、25(None/STARTTLS)。'));
+    $form->addInput($commentMailSmtpPort);
+
+    $commentMailSmtpSecure = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'commentMailSmtpSecure',
+        array('ssl' => _t('SSL/TLS'), 'tls' => _t('STARTTLS'), 'none' => _t('无加密')),
+        'ssl',
+        _t('SMTP 加密方式'),
+        _t('请按邮件服务商提供的配置选择。')
+    );
+    $form->addInput($commentMailSmtpSecure);
+
+    $commentMailSmtpAuth = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'commentMailSmtpAuth',
+        array('on' => _t('需要登录认证'), 'off' => _t('无需认证')),
+        'on',
+        _t('SMTP 认证'),
+        _t('大多数邮件服务商需要开启认证。')
+    );
+    $form->addInput($commentMailSmtpAuth);
+
+    $commentMailSmtpUser = new \Typecho\Widget\Helper\Form\Element\Text('commentMailSmtpUser', NULL, NULL, _t('SMTP 用户名'), _t('通常是完整邮箱地址。'));
+    $form->addInput($commentMailSmtpUser);
+
+    $commentMailSmtpPass = new \Typecho\Widget\Helper\Form\Element\Password('commentMailSmtpPass', NULL, NULL, _t('SMTP 密码/授权码'), _t('推荐使用邮箱服务商提供的应用授权码。'));
+    $form->addInput($commentMailSmtpPass);
+
+    $commentMailFromName = new \Typecho\Widget\Helper\Form\Element\Text('commentMailFromName', NULL, NULL, _t('发件人名称'), _t('留空时使用站点标题。'));
+    $form->addInput($commentMailFromName);
+
+    $commentMailFromEmail = new \Typecho\Widget\Helper\Form\Element\Text('commentMailFromEmail', NULL, NULL, _t('发件人邮箱'), _t('通常需要与 SMTP 用户名一致或同域。'));
+    $form->addInput($commentMailFromEmail);
+
+    $commentMailReplyTo = new \Typecho\Widget\Helper\Form\Element\Text('commentMailReplyTo', NULL, NULL, _t('回复到邮箱'), _t('留空时使用发件人邮箱。'));
+    $form->addInput($commentMailReplyTo);
+
+    $commentMailTimeout = new \Typecho\Widget\Helper\Form\Element\Text('commentMailTimeout', NULL, '10', _t('SMTP 超时秒数'), _t('建议 5-30 秒。'));
+    $form->addInput($commentMailTimeout);
+
+    netsukoConfigSection($form, '邮件模板', '标题和正文支持变量：{site}、{title}、{author}、{mail}、{status}、{text}、{permalink}、{parent_author}、{parent_text}、{time}。');
+
+    $commentMailOwnerSubject = new \Typecho\Widget\Helper\Form\Element\Text(
+        'commentMailOwnerSubject',
+        NULL,
+        '[{title}] 一文有新的评论',
+        _t('博主接收邮件标题'),
+        _t('用于发送给文章作者。')
+    );
+    $form->addInput($commentMailOwnerSubject);
+
+    $commentMailVisitorSubject = new \Typecho\Widget\Helper\Form\Element\Text(
+        'commentMailVisitorSubject',
+        NULL,
+        '您在悦绮录 [{title}] 的评论有新的回复',
+        _t('访客接收邮件标题'),
+        _t('用于发送给被回复的评论者。')
+    );
+    $form->addInput($commentMailVisitorSubject);
+
+    $commentMailOwnerTemplate = new \Typecho\Widget\Helper\Form\Element\Textarea(
+        'commentMailOwnerTemplate',
+        NULL,
+        netsukoDefaultOwnerMailTemplate(),
+        _t('博主接收邮件正文模板'),
+        _t('支持 HTML；变量会自动转义并替换。')
+    );
+    $form->addInput($commentMailOwnerTemplate);
+
+    $commentMailVisitorTemplate = new \Typecho\Widget\Helper\Form\Element\Textarea(
+        'commentMailVisitorTemplate',
+        NULL,
+        netsukoDefaultVisitorMailTemplate(),
+        _t('访客接收邮件正文模板'),
+        _t('支持 HTML；变量会自动转义并替换。')
+    );
+    $form->addInput($commentMailVisitorTemplate);
+}
+
+function netsukoConfigAdminAssets($form): void {
+    $style = new \Typecho\Widget\Helper\Layout('style');
+    $style->html(<<<'CSS'
+.netsuko-config-section,
+.netsuko-version-card,
+.netsuko-backup-card {
+    margin: 24px 0 14px;
+    padding: 18px 20px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+.netsuko-config-section h3,
+.netsuko-version-card h3,
+.netsuko-backup-card h3 {
+    margin: 0 0 6px;
+    font-size: 16px;
+    line-height: 1.4;
+    color: #111827;
+}
+.netsuko-config-section p,
+.netsuko-version-card p,
+.netsuko-backup-card p {
+    margin: 0;
+    color: #6b7280;
+    line-height: 1.7;
+}
+.netsuko-version-card {
+    background: #f0fdfa;
+    border-color: rgba(20, 184, 166, 0.28);
+}
+.netsuko-backup-card {
+    background: #fff7ed;
+    border-color: rgba(249, 115, 22, 0.22);
+}
+.netsuko-version-row,
+.netsuko-backup-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-top: 12px;
+}
+.netsuko-version-pill,
+.netsuko-backup-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 1px solid rgba(20, 184, 166, 0.22);
+    color: #0f766e;
+    font-size: 13px;
+}
+.netsuko-backup-pill {
+    border-color: rgba(249, 115, 22, 0.22);
+    color: #c2410c;
+}
+.netsuko-version-status,
+.netsuko-backup-status {
+    margin-top: 12px;
+    color: #374151;
+}
+.netsuko-backup-check {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    color: #4b5563;
+}
+.netsuko-backup-file {
+    display: none;
+}
+.netsuko-version-links {
+    display: none;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+.netsuko-version-links a {
+    color: #0f766e;
+    text-decoration: none;
+}
+.netsuko-version-links a:hover {
+    text-decoration: underline;
+}
+CSS);
+    $form->addItem($style);
+}
+
+function netsukoConfigSection($form, string $title, string $description): void {
+    $section = new \Typecho\Widget\Helper\Layout('div', ['class' => 'netsuko-config-section']);
+    $section->html(
+        '<h3>' . netsukoEscape($title) . '</h3>' .
+        '<p>' . netsukoEscape($description) . '</p>'
+    );
+    $form->addItem($section);
+}
+
+function netsukoThemeVersion(): string {
+    $indexFile = __DIR__ . '/index.php';
+    if (is_file($indexFile) && preg_match('/@version\s+([^\s]+)/', (string) file_get_contents($indexFile), $matches)) {
+        return trim($matches[1]);
+    }
+
+    return '0.0.0';
+}
+
+function netsukoConfigBackupTools($form): void {
+    $version = netsukoThemeVersion();
+    $fields = [
+        'authorName',
+        'authorAvatar',
+        'postFont',
+        'defaultThumb',
+        'motto',
+        'mottoFont',
+        'mottoQuotes',
+        'mottoColorLight',
+        'mottoColorDark',
+        'indexBanner',
+        'indexBannerDark',
+        'indexBannerHeight',
+        'bannerOpacity',
+        'githubUrl',
+        'socialTwitter',
+        'socialTelegram',
+        'socialEmail',
+        'socialDiscord',
+        'socialInstagram',
+        'socialBilibili',
+        'socialWechat',
+        'sidebarLinks',
+        'icpNum',
+        'icpUrl',
+        'rssFeed',
+        'siteStatusUrl',
+        'customHeadCode',
+        'commentCaptchaMode',
+        'turnstileSiteKey',
+        'turnstileSecretKey',
+        'commentMailEnabled',
+        'commentMailOwnerStatuses',
+        'commentMailNotifyOwner',
+        'commentMailNotifyReplied',
+        'commentMailNotifySelf',
+        'commentMailLogEnabled',
+        'commentMailSmtpHost',
+        'commentMailSmtpPort',
+        'commentMailSmtpSecure',
+        'commentMailSmtpAuth',
+        'commentMailSmtpUser',
+        'commentMailSmtpPass',
+        'commentMailFromName',
+        'commentMailFromEmail',
+        'commentMailReplyTo',
+        'commentMailTimeout',
+        'commentMailOwnerSubject',
+        'commentMailVisitorSubject',
+        'commentMailOwnerTemplate',
+        'commentMailVisitorTemplate'
+    ];
+    $fieldsJson = json_encode($fields, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+    $card = new \Typecho\Widget\Helper\Layout('div', [
+        'class' => 'netsuko-backup-card',
+        'data-theme-version' => $version,
+        'data-fields' => netsukoEscape($fieldsJson)
+    ]);
+    $card->html(
+        '<h3>配置备份</h3>' .
+        '<p>导出为 JSON，导入后需要点击页面底部保存设置。</p>' .
+        '<div class="netsuko-backup-row">' .
+            '<span class="netsuko-backup-pill">仅处理当前设置表单</span>' .
+            '<button type="button" class="btn" id="netsuko-export-config">导出当前配置</button>' .
+            '<button type="button" class="btn" id="netsuko-import-config">导入配置 JSON</button>' .
+            '<label class="netsuko-backup-check"><input type="checkbox" id="netsuko-include-secrets"> 包含敏感密钥</label>' .
+            '<input type="file" class="netsuko-backup-file" id="netsuko-config-file" accept="application/json,.json">' .
+        '</div>' .
+        '<div class="netsuko-backup-status" id="netsuko-backup-status">默认不会导出 Turnstile Secret Key。</div>' .
+        '<script>
+(function () {
+    var card = document.querySelector(".netsuko-backup-card");
+    var exportButton = document.getElementById("netsuko-export-config");
+    var importButton = document.getElementById("netsuko-import-config");
+    var includeSecrets = document.getElementById("netsuko-include-secrets");
+    var fileInput = document.getElementById("netsuko-config-file");
+    var status = document.getElementById("netsuko-backup-status");
+    var form = card ? card.closest("form") : null;
+    if (!card || !form || !exportButton || !importButton || !fileInput || !status) {
+        return;
+    }
+
+    var fields = [];
+    try {
+        fields = JSON.parse(card.getAttribute("data-fields") || "[]");
+    } catch (error) {
+        status.textContent = "配置字段读取失败。";
+        return;
+    }
+
+    function fieldSelector(name) {
+        return "[name=\"" + name + "\"]";
+    }
+
+    function readField(name) {
+        var controls = Array.prototype.slice.call(form.querySelectorAll(fieldSelector(name)));
+        if (!controls.length) {
+            return null;
+        }
+
+        if (controls[0].type === "radio") {
+            var checked = controls.find(function (control) { return control.checked; });
+            return checked ? checked.value : "";
+        }
+
+        if (controls[0].type === "checkbox" && controls.length > 1) {
+            return controls.filter(function (control) { return control.checked; }).map(function (control) { return control.value; });
+        }
+
+        if (controls[0].type === "checkbox") {
+            return controls[0].checked;
+        }
+
+        return controls[0].value || "";
+    }
+
+    function writeField(name, value) {
+        var controls = Array.prototype.slice.call(form.querySelectorAll(fieldSelector(name)));
+        if (!controls.length) {
+            return false;
+        }
+
+        if (controls[0].type === "radio") {
+            controls.forEach(function (control) {
+                control.checked = String(control.value) === String(value);
+                control.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+            return true;
+        }
+
+        if (controls[0].type === "checkbox" && controls.length > 1) {
+            var values = Array.isArray(value) ? value.map(String) : [String(value)];
+            controls.forEach(function (control) {
+                control.checked = values.indexOf(String(control.value)) !== -1;
+                control.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+            return true;
+        }
+
+        if (controls[0].type === "checkbox") {
+            controls[0].checked = Boolean(value);
+            controls[0].dispatchEvent(new Event("change", { bubbles: true }));
+            return true;
+        }
+
+        controls[0].value = value == null ? "" : String(value);
+        controls[0].dispatchEvent(new Event("input", { bubbles: true }));
+        controls[0].dispatchEvent(new Event("change", { bubbles: true }));
+        return true;
+    }
+
+    function downloadJson(data) {
+        var blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        var date = new Date().toISOString().slice(0, 10);
+        link.href = url;
+        link.download = "netsuko-config-" + date + ".json";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    }
+
+    exportButton.addEventListener("click", function () {
+        var settings = {};
+        fields.forEach(function (name) {
+            if ((name === "turnstileSecretKey" || name === "commentMailSmtpPass") && (!includeSecrets || !includeSecrets.checked)) {
+                return;
+            }
+            settings[name] = readField(name);
+        });
+
+        downloadJson({
+            theme: "netsuko",
+            version: card.getAttribute("data-theme-version") || "",
+            exportedAt: new Date().toISOString(),
+            settings: settings
+        });
+
+        status.textContent = includeSecrets && includeSecrets.checked
+            ? "已导出配置，请妥善保存包含密钥的文件。"
+            : "已导出配置，敏感密钥未包含在文件中。";
+    });
+
+    importButton.addEventListener("click", function () {
+        fileInput.value = "";
+        fileInput.click();
+    });
+
+    fileInput.addEventListener("change", function () {
+        var file = fileInput.files && fileInput.files[0];
+        if (!file) {
+            return;
+        }
+
+        file.text()
+            .then(function (text) {
+                var parsed = JSON.parse(text);
+                var settings = parsed && parsed.settings ? parsed.settings : parsed;
+                if (!settings || typeof settings !== "object") {
+                    throw new Error("文件内容不是可识别的配置 JSON");
+                }
+
+                var changed = 0;
+                fields.forEach(function (name) {
+                    if (Object.prototype.hasOwnProperty.call(settings, name) && writeField(name, settings[name])) {
+                        changed++;
+                    }
+                });
+
+                status.textContent = "已导入 " + changed + " 项到表单，请检查后点击保存设置。";
+            })
+            .catch(function (error) {
+                status.textContent = "导入失败：" + error.message;
+            });
+    });
+})();
+</script>'
+    );
+    $form->addItem($card);
+}
+
+function netsukoConfigVersionChecker($form): void {
+    $version = netsukoThemeVersion();
+    $releaseUrl = 'https://github.com/ScDuckXu/netsuko_typecho_theme/releases/latest';
+
+    $card = new \Typecho\Widget\Helper\Layout('div', [
+        'class' => 'netsuko-version-card',
+        'data-current-version' => $version
+    ]);
+    $card->html(
+        '<h3>Netsuko 版本更新检查</h3>' .
+        '<p>此检查不会修改服务器上的任何文件，仅检查更新，需要手动下载覆盖。</p>' .
+        '<div class="netsuko-version-row">' .
+            '<span class="netsuko-version-pill">当前版本：' . netsukoEscape($version) . '</span>' .
+            '<button type="button" class="btn" id="netsuko-check-update">检查最新版本</button>' .
+        '</div>' .
+        '<div class="netsuko-version-status" id="netsuko-version-status">点击按钮检查 GitHub 最新 Release。</div>' .
+        '<div class="netsuko-version-links" id="netsuko-version-links">' .
+            '<a href="' . netsukoEscape($releaseUrl) . '" target="_blank" rel="noopener noreferrer" id="netsuko-release-link">打开 Release</a>' .
+            '<a href="#" target="_blank" rel="noopener noreferrer" id="netsuko-download-link">下载更新包</a>' .
+        '</div>' .
+        '<script>
+(function () {
+    var button = document.getElementById("netsuko-check-update");
+    var status = document.getElementById("netsuko-version-status");
+    var links = document.getElementById("netsuko-version-links");
+    var releaseLink = document.getElementById("netsuko-release-link");
+    var downloadLink = document.getElementById("netsuko-download-link");
+    var card = button ? button.closest(".netsuko-version-card") : null;
+    if (!button || !status || !card) {
+        return;
+    }
+
+    var current = card.getAttribute("data-current-version") || "0.0.0";
+    var endpoint = "https://api.github.com/repos/ScDuckXu/netsuko_typecho_theme/releases/latest";
+
+    function normalize(version) {
+        return String(version || "").replace(/^v/i, "").split(".").map(function (part) {
+            var number = parseInt(part, 10);
+            return isNaN(number) ? 0 : number;
+        });
+    }
+
+    function compare(a, b) {
+        var left = normalize(a);
+        var right = normalize(b);
+        var length = Math.max(left.length, right.length);
+        for (var i = 0; i < length; i++) {
+            var av = left[i] || 0;
+            var bv = right[i] || 0;
+            if (av > bv) return 1;
+            if (av < bv) return -1;
+        }
+        return 0;
+    }
+
+    button.addEventListener("click", function () {
+        button.disabled = true;
+        status.textContent = "正在查询 GitHub Releases...";
+        if (links) {
+            links.style.display = "none";
+        }
+
+        fetch(endpoint, { headers: { "Accept": "application/vnd.github+json" } })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error("GitHub 返回 " + response.status);
+                }
+                return response.json();
+            })
+            .then(function (release) {
+                var latest = release.tag_name || "";
+                var asset = (release.assets || []).find(function (item) {
+                    return item.name === "netsuko.zip";
+                });
+                var downloadUrl = asset ? asset.browser_download_url : release.html_url;
+                var result = compare(current, latest);
+
+                if (releaseLink) {
+                    releaseLink.href = release.html_url || "https://github.com/ScDuckXu/netsuko_typecho_theme/releases/latest";
+                }
+                if (downloadLink) {
+                    downloadLink.href = downloadUrl;
+                    downloadLink.textContent = asset ? "下载更新包" : "打开 Release 下载";
+                }
+                if (links) {
+                    links.style.display = "flex";
+                }
+
+                if (result < 0) {
+                    status.textContent = "发现新版本 " + latest + "。建议先备份主题配置，再前往 Release 手动更新。";
+                } else if (result === 0) {
+                    status.textContent = "当前已经是最新版本：" + latest + "。";
+                } else {
+                    status.textContent = "当前版本 " + current + " 高于 GitHub 最新 Release " + latest + "。";
+                }
+            })
+            .catch(function (error) {
+                status.textContent = "检查失败：" + error.message + "。你仍可手动打开 GitHub Releases 查看。";
+                if (links) {
+                    links.style.display = "flex";
+                }
+            })
+            .finally(function () {
+                button.disabled = false;
+            });
+    });
+})();
+</script>'
+    );
+    $form->addItem($card);
 }
 
 
@@ -469,6 +1072,452 @@ function netsukoVerifyTurnstileToken(string $secret, string $token): bool {
 
     $data = json_decode($response, true);
     return is_array($data) && !empty($data['success']);
+}
+
+function netsukoDefaultOwnerMailTemplate(): string {
+    return <<<HTML
+<p>文章 <strong>{title}</strong> 收到新的评论。</p>
+<p><strong>评论者：</strong>{author} ({mail})</p>
+<p><strong>状态：</strong>{status}</p>
+<blockquote>{text}</blockquote>
+<p><a href="{permalink}">查看评论</a></p>
+HTML;
+}
+
+function netsukoDefaultVisitorMailTemplate(): string {
+    return <<<HTML
+<p>您在 <strong>{title}</strong> 的评论有新的回复。</p>
+<p><strong>{author}</strong> 回复：</p>
+<blockquote>{text}</blockquote>
+<p><strong>您原来的评论：</strong></p>
+<blockquote>{parent_text}</blockquote>
+<p><a href="{permalink}">查看回复</a></p>
+HTML;
+}
+
+function netsukoMailEnabled(): bool {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    return (string) ($options->commentMailEnabled ?: 'off') === 'on';
+}
+
+function netsukoHandleCommentMailNotification($commentWidget): void {
+    if (!netsukoMailEnabled()) {
+        return;
+    }
+
+    try {
+        $comment = netsukoMailCurrentComment($commentWidget);
+        if (!$comment || ($comment['type'] ?? 'comment') !== 'comment') {
+            return;
+        }
+
+        netsukoSendCommentNotifications($comment, 'created');
+    } catch (\Throwable $e) {
+        netsukoMailLog('error', 'comment notification failed: ' . $e->getMessage());
+    }
+}
+
+function netsukoHandleCommentStatusMailNotification($comment, $widget, $status): void {
+    if (!netsukoMailEnabled() || !is_array($comment)) {
+        return;
+    }
+
+    try {
+        if (($comment['status'] ?? '') === $status || ($comment['type'] ?? 'comment') !== 'comment') {
+            return;
+        }
+
+        $comment['status'] = $status;
+        netsukoSendCommentNotifications($comment, 'status');
+    } catch (\Throwable $e) {
+        netsukoMailLog('error', 'comment status notification failed: ' . $e->getMessage());
+    }
+}
+
+function netsukoMailCurrentComment($widget): ?array {
+    if (!$widget || empty($widget->coid)) {
+        return null;
+    }
+
+    $db = \Typecho\Db::get();
+    $comment = $db->fetchRow($db->select()->from('table.comments')->where('coid = ?', $widget->coid)->limit(1));
+    return is_array($comment) ? $comment : null;
+}
+
+function netsukoSendCommentNotifications(array $comment, string $event): void {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $content = netsukoMailContent((int) ($comment['cid'] ?? 0));
+    if (!$content) {
+        netsukoMailLog('warning', 'skip mail: content not found for comment #' . ($comment['coid'] ?? 'unknown'));
+        return;
+    }
+
+    $parent = !empty($comment['parent']) ? netsukoMailComment((int) $comment['parent']) : null;
+    $context = netsukoMailContext($comment, $content, $parent);
+
+    if ((string) ($options->commentMailNotifyOwner ?: 'on') === 'on' && netsukoOwnerStatusAllowed((string) ($comment['status'] ?? ''))) {
+        $owner = netsukoMailOwner($content);
+        if ($owner && !empty($owner['mail']) && netsukoShouldSendSelfMail($comment, $owner)) {
+            netsukoSendTemplateMail(
+                $owner['mail'],
+                $owner['name'] ?: $options->title,
+                (string) ($options->commentMailOwnerSubject ?: '[{title}] 一文有新的评论'),
+                (string) ($options->commentMailOwnerTemplate ?: netsukoDefaultOwnerMailTemplate()),
+                $context,
+                'owner'
+            );
+        }
+    }
+
+    if ((string) ($options->commentMailNotifyReplied ?: 'on') === 'on' && ($comment['status'] ?? '') === 'approved' && $parent) {
+        $recipient = [
+            'mail' => $parent['mail'] ?? '',
+            'name' => $parent['author'] ?? ''
+        ];
+
+        if (!empty($recipient['mail']) && netsukoShouldSendSelfMail($comment, $recipient, $parent)) {
+            netsukoSendTemplateMail(
+                $recipient['mail'],
+                $recipient['name'] ?: $parent['author'],
+                (string) ($options->commentMailVisitorSubject ?: '您在 [{title}] 的评论有新的回复'),
+                (string) ($options->commentMailVisitorTemplate ?: netsukoDefaultVisitorMailTemplate()),
+                $context,
+                'visitor'
+            );
+        }
+    }
+}
+
+function netsukoOwnerStatusAllowed(string $status): bool {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $allowed = $options->commentMailOwnerStatuses;
+    if (!is_array($allowed)) {
+        $allowed = $allowed ? [$allowed] : ['approved', 'waiting'];
+    }
+
+    return in_array($status, $allowed, true);
+}
+
+function netsukoShouldSendSelfMail(array $comment, array $recipient, ?array $parent = null): bool {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    if ((string) ($options->commentMailNotifySelf ?: 'off') === 'on') {
+        return true;
+    }
+
+    $commentMail = strtolower(trim((string) ($comment['mail'] ?? '')));
+    $recipientMail = strtolower(trim((string) ($recipient['mail'] ?? '')));
+    if ($commentMail !== '' && $recipientMail !== '' && $commentMail === $recipientMail) {
+        return false;
+    }
+
+    if (!empty($comment['authorId']) && !empty($recipient['uid']) && (int) $comment['authorId'] === (int) $recipient['uid']) {
+        return false;
+    }
+
+    if ($parent && !empty($comment['authorId']) && !empty($parent['authorId']) && (int) $comment['authorId'] === (int) $parent['authorId']) {
+        return false;
+    }
+
+    return true;
+}
+
+function netsukoSendTemplateMail(string $toEmail, string $toName, string $subjectTemplate, string $bodyTemplate, array $context, string $target): void {
+    $toEmail = trim($toEmail);
+    if (!filter_var($toEmail, FILTER_VALIDATE_EMAIL)) {
+        netsukoMailLog('warning', 'skip invalid recipient for ' . $target . ': ' . $toEmail);
+        return;
+    }
+
+    $subject = netsukoRenderMailTemplate($subjectTemplate, $context, false);
+    $body = netsukoRenderMailTemplate($bodyTemplate, $context, true);
+    netsukoSmtpSend($toEmail, $toName, $subject, $body);
+    netsukoMailLog('info', 'sent ' . $target . ' mail to ' . $toEmail . ' for comment #' . ($context['coid'] ?? 'unknown'));
+}
+
+function netsukoMailContent(int $cid): ?array {
+    if ($cid <= 0) {
+        return null;
+    }
+
+    $db = \Typecho\Db::get();
+    $content = $db->fetchRow($db->select()->from('table.contents')->where('cid = ?', $cid)->limit(1));
+    return is_array($content) ? $content : null;
+}
+
+function netsukoMailComment(int $coid): ?array {
+    if ($coid <= 0) {
+        return null;
+    }
+
+    $db = \Typecho\Db::get();
+    $comment = $db->fetchRow($db->select()->from('table.comments')->where('coid = ?', $coid)->limit(1));
+    return is_array($comment) ? $comment : null;
+}
+
+function netsukoMailOwner(array $content): ?array {
+    $ownerId = (int) ($content['authorId'] ?? 0);
+    if ($ownerId <= 0) {
+        return null;
+    }
+
+    $db = \Typecho\Db::get();
+    $user = $db->fetchRow($db->select('screenName', 'name', 'mail')->from('table.users')->where('uid = ?', $ownerId)->limit(1));
+    if (!is_array($user)) {
+        return null;
+    }
+
+    return [
+        'uid' => $ownerId,
+        'name' => $user['screenName'] ?: $user['name'],
+        'mail' => $user['mail']
+    ];
+}
+
+function netsukoMailContext(array $comment, array $content, ?array $parent = null): array {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $title = (string) ($content['title'] ?? '');
+    $permalink = netsukoContentPermalink($content);
+    $coid = (int) ($comment['coid'] ?? 0);
+
+    return [
+        'site' => (string) $options->title,
+        'title' => $title,
+        'author' => (string) ($comment['author'] ?? ''),
+        'mail' => (string) ($comment['mail'] ?? ''),
+        'status' => netsukoMailStatusLabel((string) ($comment['status'] ?? '')),
+        'text' => netsukoMailPlainText((string) ($comment['text'] ?? '')),
+        'permalink' => $permalink . ($coid > 0 ? '#comment-' . $coid : ''),
+        'parent_author' => (string) ($parent['author'] ?? ''),
+        'parent_text' => netsukoMailPlainText((string) ($parent['text'] ?? '')),
+        'time' => date('Y-m-d H:i:s', (int) ($comment['created'] ?? time())),
+        'coid' => (string) $coid
+    ];
+}
+
+function netsukoMailStatusLabel(string $status): string {
+    $labels = [
+        'approved' => '已通过',
+        'waiting' => '待审核',
+        'spam' => '垃圾评论'
+    ];
+
+    return $labels[$status] ?? $status;
+}
+
+function netsukoMailPlainText(string $text): string {
+    $text = strip_tags($text);
+    $text = preg_replace('/\s+/u', ' ', $text);
+    return trim((string) $text);
+}
+
+function netsukoRenderMailTemplate(string $template, array $context, bool $html): string {
+    $replace = [];
+    foreach ($context as $key => $value) {
+        $replace['{' . $key . '}'] = $html
+            ? nl2br(netsukoEscape($value))
+            : trim(strip_tags((string) $value));
+    }
+
+    return strtr($template, $replace);
+}
+
+function netsukoContentPermalink(array $content): string {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $type = (string) ($content['type'] ?? 'post');
+    $slug = (string) ($content['slug'] ?? '');
+    $cid = (int) ($content['cid'] ?? 0);
+    $created = (int) ($content['created'] ?? time());
+    $date = getdate($created);
+    $params = [
+        'cid' => $cid,
+        'slug' => $slug !== '' ? rawurlencode($slug) : (string) $cid,
+        'directory' => '',
+        'year' => (string) $date['year'],
+        'month' => str_pad((string) $date['mon'], 2, '0', STR_PAD_LEFT),
+        'day' => str_pad((string) $date['mday'], 2, '0', STR_PAD_LEFT)
+    ];
+
+    $path = \Typecho\Router::url($type, $params);
+    if ($path !== '#') {
+        return \Typecho\Common::url($path, $options->index);
+    }
+
+    if ($type === 'page' && $slug !== '') {
+        return rtrim((string) $options->siteUrl, '/') . '/' . rawurlencode($slug) . '.html';
+    }
+
+    return rtrim((string) $options->siteUrl, '/') . '/index.php/archives/' . $cid . '/';
+}
+
+function netsukoSmtpConfig(): array {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $host = trim((string) $options->commentMailSmtpHost);
+    $port = (int) ($options->commentMailSmtpPort ?: 465);
+    $secure = (string) ($options->commentMailSmtpSecure ?: 'ssl');
+    $auth = (string) ($options->commentMailSmtpAuth ?: 'on') === 'on';
+    $fromEmail = trim((string) $options->commentMailFromEmail);
+    $fromName = trim((string) ($options->commentMailFromName ?: $options->title));
+    $replyTo = trim((string) ($options->commentMailReplyTo ?: $fromEmail));
+    $timeout = max(5, min(30, (int) ($options->commentMailTimeout ?: 10)));
+
+    return [
+        'host' => $host,
+        'port' => $port,
+        'secure' => in_array($secure, ['ssl', 'tls', 'none'], true) ? $secure : 'ssl',
+        'auth' => $auth,
+        'user' => trim((string) $options->commentMailSmtpUser),
+        'pass' => (string) $options->commentMailSmtpPass,
+        'fromEmail' => $fromEmail,
+        'fromName' => $fromName,
+        'replyTo' => $replyTo,
+        'timeout' => $timeout
+    ];
+}
+
+function netsukoSmtpSend(string $toEmail, string $toName, string $subject, string $html): void {
+    $config = netsukoSmtpConfig();
+    if ($config['host'] === '' || $config['fromEmail'] === '' || !filter_var($config['fromEmail'], FILTER_VALIDATE_EMAIL)) {
+        throw new \RuntimeException('SMTP host or sender email is not configured');
+    }
+    if ($config['auth'] && ($config['user'] === '' || $config['pass'] === '')) {
+        throw new \RuntimeException('SMTP username or password is not configured');
+    }
+
+    $transport = $config['secure'] === 'ssl' ? 'ssl://' : '';
+    $socket = @stream_socket_client(
+        $transport . $config['host'] . ':' . $config['port'],
+        $errno,
+        $errstr,
+        $config['timeout'],
+        STREAM_CLIENT_CONNECT
+    );
+
+    if (!$socket) {
+        throw new \RuntimeException('SMTP connect failed: ' . $errstr . ' (' . $errno . ')');
+    }
+
+    stream_set_timeout($socket, $config['timeout']);
+
+    try {
+        netsukoSmtpExpect($socket, [220]);
+        netsukoSmtpCommand($socket, 'EHLO ' . netsukoSmtpHostname(), [250]);
+
+        if ($config['secure'] === 'tls') {
+            netsukoSmtpCommand($socket, 'STARTTLS', [220]);
+            if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                throw new \RuntimeException('SMTP STARTTLS negotiation failed');
+            }
+            netsukoSmtpCommand($socket, 'EHLO ' . netsukoSmtpHostname(), [250]);
+        }
+
+        if ($config['auth']) {
+            netsukoSmtpCommand($socket, 'AUTH LOGIN', [334]);
+            netsukoSmtpCommand($socket, base64_encode($config['user']), [334]);
+            netsukoSmtpCommand($socket, base64_encode($config['pass']), [235]);
+        }
+
+        netsukoSmtpCommand($socket, 'MAIL FROM:<' . $config['fromEmail'] . '>', [250]);
+        netsukoSmtpCommand($socket, 'RCPT TO:<' . $toEmail . '>', [250, 251]);
+        netsukoSmtpCommand($socket, 'DATA', [354]);
+        netsukoSmtpWrite($socket, netsukoBuildMailMessage($toEmail, $toName, $subject, $html, $config) . "\r\n.");
+        netsukoSmtpExpect($socket, [250]);
+        netsukoSmtpCommand($socket, 'QUIT', [221]);
+    } finally {
+        fclose($socket);
+    }
+}
+
+function netsukoBuildMailMessage(string $toEmail, string $toName, string $subject, string $html, array $config): string {
+    $headers = [
+        'Date: ' . date(DATE_RFC2822),
+        'From: ' . netsukoMailAddress($config['fromEmail'], $config['fromName']),
+        'To: ' . netsukoMailAddress($toEmail, $toName),
+        'Subject: ' . netsukoMailHeaderEncode($subject),
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset=UTF-8',
+        'Content-Transfer-Encoding: base64',
+        'Message-ID: <' . bin2hex(random_bytes(16)) . '@' . netsukoSmtpHostname() . '>'
+    ];
+
+    if (!empty($config['replyTo']) && filter_var($config['replyTo'], FILTER_VALIDATE_EMAIL)) {
+        $headers[] = 'Reply-To: ' . netsukoMailAddress($config['replyTo'], $config['fromName']);
+    }
+
+    return implode("\r\n", $headers) . "\r\n\r\n" . chunk_split(base64_encode($html));
+}
+
+function netsukoMailAddress(string $email, string $name = ''): string {
+    $email = trim($email);
+    $name = trim($name);
+    if ($name === '') {
+        return '<' . $email . '>';
+    }
+
+    return netsukoMailHeaderEncode($name) . ' <' . $email . '>';
+}
+
+function netsukoMailHeaderEncode(string $value): string {
+    $value = trim(str_replace(["\r", "\n"], '', $value));
+    if ($value === '') {
+        return '';
+    }
+
+    return '=?UTF-8?B?' . base64_encode($value) . '?=';
+}
+
+function netsukoSmtpHostname(): string {
+    $host = $_SERVER['SERVER_NAME'] ?? 'localhost';
+    return preg_match('/^[a-z0-9.-]+$/i', $host) ? $host : 'localhost';
+}
+
+function netsukoSmtpCommand($socket, string $command, array $expect): string {
+    netsukoSmtpWrite($socket, $command);
+    return netsukoSmtpExpect($socket, $expect);
+}
+
+function netsukoSmtpWrite($socket, string $line): void {
+    fwrite($socket, $line . "\r\n");
+}
+
+function netsukoSmtpExpect($socket, array $expect): string {
+    $response = '';
+    while (($line = fgets($socket, 515)) !== false) {
+        $response .= $line;
+        if (isset($line[3]) && $line[3] === ' ') {
+            break;
+        }
+    }
+
+    if ($response === '') {
+        throw new \RuntimeException('SMTP server returned empty response');
+    }
+
+    $code = (int) substr($response, 0, 3);
+    if (!in_array($code, $expect, true)) {
+        throw new \RuntimeException('SMTP unexpected response: ' . trim($response));
+    }
+
+    return $response;
+}
+
+function netsukoMailLog(string $level, string $message): void {
+    try {
+        $options = \Typecho\Widget::widget('Widget_Options');
+        if ((string) ($options->commentMailLogEnabled ?: 'off') !== 'on') {
+            return;
+        }
+
+        $dir = (defined('__TYPECHO_UPLOAD_ROOT_DIR__') ? __TYPECHO_UPLOAD_ROOT_DIR__ : __TYPECHO_ROOT_DIR__)
+            . (defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads');
+        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
+            return;
+        }
+
+        $line = '[' . date('Y-m-d H:i:s') . '] [' . strtoupper($level) . '] ' . $message . PHP_EOL;
+        @file_put_contents($dir . '/netsuko-mail.log', $line, FILE_APPEND | LOCK_EX);
+    } catch (\Throwable $e) {
+        // Logging must never interrupt comments.
+    }
 }
 
 

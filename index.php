@@ -3,7 +3,7 @@
  * 使用Tailwind CSS书写。https://github.com/ScDuckXu/netsuko_typecho_theme
  * @package Netsuko
  * @author DuckXu
- * @version 1.1.2
+ * @version 1.1.3
  * @link https://duckxu.com
  */
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
