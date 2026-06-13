@@ -177,6 +177,67 @@ function themeFields($layout) {
     $layout->addItem($subtitle);
 }
 
+function netsukoEscape($value) {
+    return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+}
+
+function netsukoUrl($value, string $fallback = '#') {
+    $url = trim((string) $value);
+    if ($url === '') {
+        return netsukoEscape($fallback);
+    }
+
+    if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $url)) {
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if (!in_array($scheme, ['http', 'https', 'mailto'], true)) {
+            return netsukoEscape($fallback);
+        }
+    }
+
+    return netsukoEscape($url);
+}
+
+function netsukoCssUrl($value, string $fallback = '') {
+    $url = trim((string) $value);
+    if ($url === '') {
+        $url = $fallback;
+    }
+
+    $url = preg_replace('/[\x00-\x1F\x7F\'"()\\\\]/', '', $url);
+    return netsukoUrl($url, $fallback);
+}
+
+function netsukoColor($value, string $fallback) {
+    $color = trim((string) $value);
+    if (preg_match('/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i', $color)) {
+        return $color;
+    }
+
+    return $fallback;
+}
+
+function netsukoMailto($value) {
+    $email = trim((string) $value);
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return '#';
+    }
+
+    return 'mailto:' . netsukoEscape($email);
+}
+
+function netsukoLinkify($html) {
+    return preg_replace_callback(
+        '~(?<!["\'>=])(https?://[^\s<]+)~i',
+        function ($matches) {
+            $url = rtrim($matches[1], '.,;:!?)]}');
+            $tail = substr($matches[1], strlen($url));
+            $safeUrl = netsukoUrl($url);
+            return '<a href="' . $safeUrl . '" target="_blank" rel="noopener noreferrer nofollow">' . netsukoEscape($url) . '</a>' . netsukoEscape($tail);
+        },
+        $html
+    );
+}
+
 
 function postMeta(\Widget\Archive $archive, string $metaType = 'archive') {
     echo '<div class="flex items-center gap-4 text-xs md:text-sm text-gray-500 dark:text-gray-400 flex-wrap">';
@@ -216,12 +277,14 @@ function getOS($agent) {
 
 function threadedComments($comments, $options) {
     // 限制嵌套缩进防溢出：0层无缩进；1-2层正常缩进；3层及以上取消左外边距，只保留左侧指示线
-    if ($comments->levels == 0) {
+    $displayLevel = min((int) $comments->levels, 2);
+
+    if ($displayLevel == 0) {
         $commentLevelClass = ' mt-8';
-    } elseif ($comments->levels > 0 && $comments->levels <= 2) {
-        $commentLevelClass = ' ml-6 md:ml-10 mt-6 border-l-2 border-teal/20 pl-4 md:pl-6';
+    } elseif ($displayLevel == 1) {
+        $commentLevelClass = ' comment-nested mt-6';
     } else {
-        $commentLevelClass = ' mt-6 border-l-2 border-teal/20 pl-4 md:pl-6'; 
+        $commentLevelClass = ' comment-nested comment-nested-limit mt-6';
     }
 
     ?>
@@ -248,8 +311,8 @@ function threadedComments($comments, $options) {
                             <?php endif; ?>
                         </div>
                     </div>
-                    <div class="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-2 break-words">
-                        <?php $comments->content(); ?>
+                    <div class="comment-content text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-2 break-words">
+                        <?php ob_start(); $comments->content(); echo netsukoLinkify(ob_get_clean()); ?>
                     </div>
                     <div class="flex items-center gap-4 text-xs text-gray-400">
                         <time datetime="<?php $comments->date('c'); ?>"><?php $comments->date('Y-m-d H:i'); ?></time>
@@ -262,7 +325,7 @@ function threadedComments($comments, $options) {
             </div>
         
         <?php if ($comments->children): ?>
-            <div class="comment-children">
+            <div class="comment-children<?php echo $comments->levels >= 1 ? ' comment-children-collapsed' : ''; ?>">
                 <?php $comments->threadedComments($options); ?>
             </div>
         <?php endif; ?>
@@ -280,7 +343,7 @@ function getPostThumb($obj) {
     }
     
     // 抓取文章正文里的第一张图片
-    preg_match_all( "/<[img|IMG].*?src=[\'|\"](.*?)[\'|\"].*?[\/]?>/", $obj->content, $matches );
+    preg_match_all('/<img\b[^>]*?\bsrc=[\'"]([^\'"]+)[\'"][^>]*>/i', $obj->content, $matches);
     if(isset($matches[1][0])){
         return $matches[1][0];
     }

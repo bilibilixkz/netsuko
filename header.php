@@ -149,6 +149,3 @@
         closeBtn.addEventListener('click', closeDrawer);
         overlay.addEventListener('click', closeDrawer);
     </script>
-
-</body>
-</html>

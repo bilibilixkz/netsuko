@@ -17,8 +17,8 @@ $bannerHeight = $this->options->indexBannerHeight ? $this->options->indexBannerH
 $bannerOpacity = ($this->options->bannerOpacity !== null) ? intval($this->options->bannerOpacity) / 100 : 0.5;
 
 // 获取自定义颜色设置
-$mottoColorLight = $this->options->mottoColorLight ? $this->options->mottoColorLight : '#1f2937';
-$mottoColorDark = $this->options->mottoColorDark ? $this->options->mottoColorDark : '#ffffff';
+$mottoColorLight = netsukoColor($this->options->mottoColorLight, '#1f2937');
+$mottoColorDark = netsukoColor($this->options->mottoColorDark, '#ffffff');
 
 $hasBanner = $bannerUrl || $bannerDarkUrl;
 ?>
@@ -27,11 +27,11 @@ $hasBanner = $bannerUrl || $bannerDarkUrl;
     /* Banner 背景逻辑 */
     <?php if($hasBanner): ?>
     #home-banner {
-        background-image: url('<?php echo $bannerUrl ? $bannerUrl : $bannerDarkUrl; ?>');
+        background-image: url('<?php echo netsukoCssUrl($bannerUrl ? $bannerUrl : $bannerDarkUrl); ?>');
     }
     <?php if($bannerDarkUrl): ?>
     html.dark #home-banner {
-        background-image: url('<?php echo $bannerDarkUrl; ?>') !important;
+        background-image: url('<?php echo netsukoCssUrl($bannerDarkUrl); ?>') !important;
     }
     <?php endif; ?>
     <?php endif; ?>
@@ -67,7 +67,7 @@ $hasBanner = $bannerUrl || $bannerDarkUrl;
             <?php if ($this->have()): ?>
                 <?php while ($this->next()): ?>
                     <article class="bg-white dark:bg-darkCard rounded-2xl border border-gray-200/50 dark:border-white/5 shadow-sm overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:border-teal/50 hover:shadow-glow flex flex-col sm:flex-row group" itemscope itemtype="http://schema.org/BlogPosting">
-                        <div class="w-full sm:w-1/3 h-48 sm:h-auto bg-cover bg-center transition-transform duration-500 group-hover:scale-105" style="background-image: url('<?php echo getPostThumb($this); ?>');"></div>
+                        <div class="w-full sm:w-1/3 h-48 sm:h-auto bg-cover bg-center transition-transform duration-500 group-hover:scale-105" style="background-image: url('<?php echo netsukoCssUrl(getPostThumb($this)); ?>');"></div>
                         
                         <div class="p-6 md:p-8 sm:w-2/3 flex flex-col justify-center relative z-10 bg-white dark:bg-darkCard">
                             <h2 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 group-hover:text-teal transition-colors mb-2">
@@ -80,7 +80,7 @@ $hasBanner = $bannerUrl || $bannerDarkUrl;
                             <div class="post-content text-gray-600 dark:text-gray-300 leading-relaxed text-sm line-clamp-3">
                                 <?php 
                                     if ($this->fields->custom_excerpt) {
-                                        echo $this->fields->custom_excerpt;
+                                        echo netsukoEscape($this->fields->custom_excerpt);
                                     } else {
                                         $this->excerpt(30, '...'); 
                                     }

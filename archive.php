@@ -26,7 +26,7 @@ $this->need('header.php');
             <?php if ($this->have()): ?>
                 <?php while ($this->next()): ?>
                     <article class="group flex flex-col sm:flex-row bg-white dark:bg-darkCard rounded-2xl overflow-hidden border border-gray-200/50 dark:border-white/5 hover:border-teal/30 hover:shadow-glow transition-all duration-300" itemscope itemtype="http://schema.org/BlogPosting">
-                        <div class="w-full sm:w-1/3 h-48 sm:h-auto bg-cover bg-center transition-transform duration-500 group-hover:scale-105" style="background-image: url('<?php echo getPostThumb($this); ?>');"></div>
+                        <div class="w-full sm:w-1/3 h-48 sm:h-auto bg-cover bg-center transition-transform duration-500 group-hover:scale-105" style="background-image: url('<?php echo netsukoCssUrl(getPostThumb($this)); ?>');"></div>
                         
                         <div class="p-6 md:p-8 sm:w-2/3 flex flex-col justify-center relative z-10 bg-white dark:bg-darkCard">
                             <h2 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 group-hover:text-teal transition-colors mb-2">
@@ -39,7 +39,7 @@ $this->need('header.php');
                             <div class="post-content text-gray-600 dark:text-gray-300 leading-relaxed text-sm line-clamp-3">
                                 <?php 
                                     if ($this->fields->custom_excerpt) {
-                                        echo $this->fields->custom_excerpt;
+                                        echo netsukoEscape($this->fields->custom_excerpt);
                                     } else {
                                         $this->excerpt(30, '...'); 
                                     }

@@ -13,7 +13,7 @@ $this->need('header.php');
     <div class="text-center mb-16">
         <h1 class="text-4xl md:text-5xl font-playfair italic font-semibold text-gray-900 dark:text-white text-glow mb-4"><?php $this->title() ?></h1>
         <p class="text-gray-500 dark:text-gray-400">
-            <?php echo $this->fields->subtitle ? $this->fields->subtitle : 'Footprints in the digital void.'; ?>
+            <?php echo $this->fields->subtitle ? netsukoEscape($this->fields->subtitle) : 'Footprints in the digital void.'; ?>
         </p>
     </div>
 
@@ -76,7 +76,7 @@ $this->need('header.php');
             $output .= '<article class="group relative">';
             $output .= '<div class="absolute -left-[45px] top-2 w-2 h-2 rounded-full bg-gray-200 dark:bg-gray-700 group-hover:bg-teal transition-colors"></div>';
             $output .= '<time class="text-xs text-gray-400 font-mono tracking-wider block mb-1">' . date('M d, Y', $archives->created) . '</time>';
-            $output .= '<a href="' . $archives->permalink . '" class="text-lg font-medium text-gray-800 dark:text-gray-200 group-hover:text-teal transition-colors block">' . $archives->title . '</a>';
+            $output .= '<a href="' . netsukoUrl($archives->permalink) . '" class="text-lg font-medium text-gray-800 dark:text-gray-200 group-hover:text-teal transition-colors block">' . netsukoEscape($archives->title) . '</a>';
             $output .= '</article>';
         }
         

@@ -123,6 +123,14 @@ body #comments .comment-body {
     display: flex; 
     flex-direction: column; 
     width: 100%; 
+    min-width: 0;
+    box-sizing: border-box;
+}
+body #comments .comment-nested {
+    margin-left: 1rem;
+}
+body #comments .comment-nested-limit {
+    margin-left: 0;
 }
 body #comments .comment-author { 
     display: flex; 
@@ -153,20 +161,31 @@ body #comments .comment-content {
     color: var(--text); 
     margin-bottom: 0.75rem; 
     border: 1px solid var(--border);
-    overflow-wrap: break-word; 
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
     word-break: break-word; 
 }
 body #comments .comment-content p { 
     margin: 0; 
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 body #comments .comment-content a { 
     color: var(--teal); 
     text-decoration: underline; 
     text-underline-offset: 2px; 
-    word-break: break-all; 
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 body #comments .comment-content a:hover { 
     text-shadow: 0 0 8px var(--teal-glow); 
+}
+body #comments .comment-content pre,
+body #comments .comment-content code,
+body #comments .comment-content blockquote {
+    max-width: 100%;
+    overflow-x: auto;
 }
 body #comments .comment-reply { 
     align-self: flex-end; 
@@ -187,18 +206,76 @@ body #comments .comment-reply a:hover {
 }
 body #comments .comment-children { 
     margin-top: 1.5rem; 
-    padding-left: 2rem; 
+    margin-left: 0.5rem;
+    padding-left: 1.25rem;
     border-left: 2px solid var(--teal-dim); 
-    width: 100%; 
+    width: auto;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+body #comments .comment-children-collapsed {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: 0;
 }
 @media (max-width: 768px) { 
+    body #comments {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    body #comments .comment-list li {
+        margin-top: 1rem;
+    }
+    body #comments .comment-nested {
+        margin-left: 0;
+    }
     body #comments .comment-children { 
-        padding-left: 1rem; 
+        margin-left: 0.25rem;
+        padding-left: 0.875rem;
     } 
+    body #comments .comment-children-collapsed {
+        margin-left: 0;
+        padding-left: 0;
+    }
+    body #comments .comment-content {
+        padding: 1rem;
+    }
 }
 body #respond { 
     display: block; 
     width: 100%; 
     clear: both; 
     margin-top: 2rem; 
+}
+
+.post-content,
+.post-content * {
+    min-width: 0;
+}
+
+.post-content {
+    overflow-wrap: break-word;
+    word-break: break-word;
+}
+
+.post-content a,
+.prose a {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.post-content img,
+.post-content video,
+.post-content iframe,
+.post-content table,
+.post-content pre,
+.post-content code {
+    max-width: 100%;
+}
+
+.post-content pre,
+.post-content table {
+    overflow-x: auto;
+    display: block;
 }

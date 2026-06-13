@@ -4,7 +4,7 @@ $this->need('header.php');
 ?>
 
 <?php $thumbUrl = getPostThumb($this); ?>
-<div class="w-full relative py-20 md:py-32 mb-12 flex items-center justify-center overflow-hidden border-b border-gray-200/50 dark:border-white/5 bg-cover bg-center" style="background-image: url('<?php echo $thumbUrl; ?>');">
+<div class="w-full relative py-20 md:py-32 mb-12 flex items-center justify-center overflow-hidden border-b border-gray-200/50 dark:border-white/5 bg-cover bg-center" style="background-image: url('<?php echo netsukoCssUrl($thumbUrl); ?>');">
     <div class="absolute inset-0 z-0 bg-black/50 pointer-events-none"></div>
     
     <div class="relative z-10 text-center px-4 max-w-4xl mx-auto mt-8">
@@ -41,7 +41,7 @@ $this->need('header.php');
                 <?php if(count($this->tags)): ?>
                 <div class="mt-10 pt-6 border-t border-gray-100 dark:border-white/5 flex flex-wrap gap-2">
                     <?php foreach($this->tags as $tag): ?>
-                        <a href="<?php echo $tag['permalink']; ?>" class="px-3 py-1 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 text-sm rounded-full hover:text-teal hover:bg-teal/10 transition-colors"># <?php echo $tag['name']; ?></a>
+                        <a href="<?php echo netsukoUrl($tag['permalink']); ?>" class="px-3 py-1 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 text-sm rounded-full hover:text-teal hover:bg-teal/10 transition-colors"># <?php echo netsukoEscape($tag['name']); ?></a>
                     <?php endforeach; ?>
                 </div>
                 <?php endif; ?>

@@ -4,7 +4,7 @@ $this->need('header.php');
 ?>
 
 <?php $thumbUrl = getPostThumb($this); ?>
-<div class="w-full relative py-20 md:py-32 mb-12 flex items-center justify-center overflow-hidden border-b border-gray-200/50 dark:border-white/5 bg-cover bg-center" style="background-image: url('<?php echo $thumbUrl; ?>');">
+<div class="w-full relative py-20 md:py-32 mb-12 flex items-center justify-center overflow-hidden border-b border-gray-200/50 dark:border-white/5 bg-cover bg-center" style="background-image: url('<?php echo netsukoCssUrl($thumbUrl); ?>');">
     <div class="absolute inset-0 z-0 bg-black/50 pointer-events-none"></div>
     
     <div class="relative z-10 text-center px-4 max-w-4xl mx-auto mt-8">
@@ -12,7 +12,7 @@ $this->need('header.php');
             <?php $this->title() ?>
         </h1>
         <?php if ($this->fields->subtitle): ?>
-            <p class="text-lg text-gray-200 opacity-90 mt-4"><?php echo $this->fields->subtitle; ?></p>
+            <p class="text-lg text-gray-200 opacity-90 mt-4"><?php echo netsukoEscape($this->fields->subtitle); ?></p>
         <?php endif; ?>
     </div>
 </div>
