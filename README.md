@@ -8,7 +8,8 @@ Netsuko 提供优雅的现代界面和便利的预留功能。快速上手直接
 
 ### 注意事项
 
-1.本主题目前通过 CDN 加载 Tailwind CSS。运行时，请确保环境网络畅通。后续会将CSS精简在本地。
+1.本主题已内置本地 Tailwind CSS 构建产物，运行时不依赖 Tailwind CDN。
 2.进入“后台 -> 外观 -> 设置外观”，你可以自定义许多的标签项。
-3.本项目基于 MIT License 开源。
-4.Netsuko 在开发过程中在编辑器中使用了AI辅助。
+3.如需二次开发样式，可执行 `npm run build:css` 重新生成本地 CSS；无 Node 环境时也可使用 Tailwind standalone CLI 执行同名命令里的参数。
+4.本项目基于 MIT License 开源。
+5.Netsuko 在开发过程中在编辑器中使用了AI辅助。

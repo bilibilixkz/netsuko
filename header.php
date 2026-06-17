@@ -12,32 +12,8 @@
             'author'    =>  _t('%s 发布的文章')
         ), '', ' - '); ?><?php $this->options->title(); ?></title>
 
-    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
-    <link rel="stylesheet" href="<?php $this->options->themeUrl('style.css'); ?>?v=1.1.2">
-
-    <script>
-        tailwind.config = {
-            darkMode: 'class', 
-            theme: {
-                extend: {
-                    colors: {
-                        teal: '#00d2ff', 
-                        darkBg: '#121418', 
-                        darkCard: '#1a1d24', 
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
-                        playfair: ['"Playfair Display"', 'serif'],
-                    },
-                    boxShadow: {
-                        glow: '0 0 20px rgba(0, 210, 255, 0.15)', 
-                    }
-                }
-            }
-        }
-    </script>
-
-
+    <link rel="stylesheet" href="<?php echo netsukoEscape(netsukoTailwindCssUrl()); ?>?v=1.1.3">
+    <link rel="stylesheet" href="<?php $this->options->themeUrl('style.css'); ?>?v=1.1.3">
 
     <script>
         if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {

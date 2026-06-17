@@ -6,9 +6,10 @@
  */
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 $this->need('header.php');
+$fancyboxAssets = netsukoFancyboxAssets();
 ?>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.css" />
+<link rel="stylesheet" href="<?php echo netsukoEscape($fancyboxAssets['css']); ?>?v=1.1.3" />
 
 <main class="flex-grow w-full max-w-6xl mx-auto px-4 sm:px-6 py-12 md:py-20 z-10 relative">
     
@@ -73,9 +74,13 @@ $this->need('header.php');
 
 </main>
 
-<script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>
+<script src="<?php echo netsukoEscape($fancyboxAssets['js']); ?>?v=1.1.3"></script>
 <script>
     document.addEventListener("DOMContentLoaded", function() {
+        if (!window.Fancybox) {
+            return;
+        }
+
         Fancybox.bind('[data-fancybox="gallery"]', {
             // 在这里可以配置 Fancybox 的动画、缩放等选项
             Toolbar: {

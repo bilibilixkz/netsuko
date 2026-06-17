@@ -35,6 +35,60 @@ function themeConfig($form)
     );
     $form->addInput($defaultThumb);
 
+    netsukoConfigSection($form, '静态资源', '选择 Tailwind CSS 与 Fancybox 的加载来源。默认使用主题内置本地资源。');
+
+    $assetSourceOptions = array(
+        'local' => _t('本地主题文件'),
+        'custom' => _t('自建 CDN（预留）'),
+        'jsdelivr' => _t('jsDelivr'),
+        'github' => _t('GitHub 源')
+    );
+
+    $tailwindAssetSource = new \Typecho\Widget\Helper\Form\Element\Select(
+        'tailwindAssetSource',
+        $assetSourceOptions,
+        'local',
+        _t('Tailwind CSS 来源'),
+        _t('建议保持本地。自建 CDN 选择项已预留，填写下方 URL 后生效。')
+    );
+    $form->addInput($tailwindAssetSource);
+
+    $tailwindCustomUrl = new \Typecho\Widget\Helper\Form\Element\Text(
+        'tailwindCustomUrl',
+        NULL,
+        NULL,
+        _t('自建 Tailwind CSS URL'),
+        _t('预留给你自己的 CDN，留空时自动回退本地文件。')
+    );
+    $form->addInput($tailwindCustomUrl);
+
+    $fancyboxAssetSource = new \Typecho\Widget\Helper\Form\Element\Select(
+        'fancyboxAssetSource',
+        $assetSourceOptions,
+        'local',
+        _t('Fancybox 来源'),
+        _t('画廊页使用。自建 CDN 选择项已预留，填写下方 CSS/JS URL 后生效。')
+    );
+    $form->addInput($fancyboxAssetSource);
+
+    $fancyboxCustomCssUrl = new \Typecho\Widget\Helper\Form\Element\Text(
+        'fancyboxCustomCssUrl',
+        NULL,
+        NULL,
+        _t('自建 Fancybox CSS URL'),
+        _t('预留给你自己的 CDN，留空时自动回退本地文件。')
+    );
+    $form->addInput($fancyboxCustomCssUrl);
+
+    $fancyboxCustomJsUrl = new \Typecho\Widget\Helper\Form\Element\Text(
+        'fancyboxCustomJsUrl',
+        NULL,
+        NULL,
+        _t('自建 Fancybox JS URL'),
+        _t('预留给你自己的 CDN，留空时自动回退本地文件。')
+    );
+    $form->addInput($fancyboxCustomJsUrl);
+
     // Banner与座右铭设置
     netsukoConfigSection($form, '首页 Banner 与座右铭', '控制首页视觉焦点、座右铭样式和 Banner 展示效果。');
 
@@ -452,6 +506,11 @@ function netsukoConfigBackupTools($form): void {
         'authorAvatar',
         'postFont',
         'defaultThumb',
+        'tailwindAssetSource',
+        'tailwindCustomUrl',
+        'fancyboxAssetSource',
+        'fancyboxCustomCssUrl',
+        'fancyboxCustomJsUrl',
         'motto',
         'mottoFont',
         'mottoQuotes',
@@ -859,6 +918,68 @@ function netsukoMailto($value) {
     }
 
     return 'mailto:' . netsukoEscape($email);
+}
+
+function netsukoThemeAssetUrl(string $path): string {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    return rtrim((string) $options->themeUrl, '/') . '/' . ltrim($path, '/');
+}
+
+function netsukoAssetExternalUrl($value, string $fallback): string {
+    $url = trim((string) $value);
+    if ($url !== '' && preg_match('/^https?:\/\//i', $url)) {
+        return $url;
+    }
+
+    return $fallback;
+}
+
+function netsukoTailwindCssUrl(): string {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $source = (string) ($options->tailwindAssetSource ?: 'local');
+    $local = netsukoThemeAssetUrl('assets/css/tailwind.css');
+
+    switch ($source) {
+        case 'custom':
+            return netsukoAssetExternalUrl($options->tailwindCustomUrl, $local);
+        case 'jsdelivr':
+            return 'https://cdn.jsdelivr.net/gh/ScDuckXu/netsuko_typecho_theme@main/assets/css/tailwind.css';
+        case 'github':
+            return 'https://raw.githubusercontent.com/ScDuckXu/netsuko_typecho_theme/main/assets/css/tailwind.css';
+        case 'local':
+        default:
+            return $local;
+    }
+}
+
+function netsukoFancyboxAssets(): array {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $source = (string) ($options->fancyboxAssetSource ?: 'local');
+    $local = [
+        'css' => netsukoThemeAssetUrl('assets/vendor/fancybox/fancybox.css'),
+        'js' => netsukoThemeAssetUrl('assets/vendor/fancybox/fancybox.umd.js')
+    ];
+
+    switch ($source) {
+        case 'custom':
+            return [
+                'css' => netsukoAssetExternalUrl($options->fancyboxCustomCssUrl, $local['css']),
+                'js' => netsukoAssetExternalUrl($options->fancyboxCustomJsUrl, $local['js'])
+            ];
+        case 'jsdelivr':
+            return [
+                'css' => 'https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.css',
+                'js' => 'https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js'
+            ];
+        case 'github':
+            return [
+                'css' => 'https://raw.githubusercontent.com/fancyapps/ui/main/dist/fancybox/fancybox.css',
+                'js' => 'https://raw.githubusercontent.com/fancyapps/ui/main/dist/fancybox/fancybox.umd.js'
+            ];
+        case 'local':
+        default:
+            return $local;
+    }
 }
 
 function netsukoLinkify($html) {
