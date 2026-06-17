@@ -12,8 +12,8 @@
             'author'    =>  _t('%s 发布的文章')
         ), '', ' - '); ?><?php $this->options->title(); ?></title>
 
-    <link rel="stylesheet" href="<?php echo netsukoEscape(netsukoTailwindCssUrl()); ?>?v=1.1.3">
-    <link rel="stylesheet" href="<?php $this->options->themeUrl('style.css'); ?>?v=1.1.3">
+    <link rel="stylesheet" href="<?php echo netsukoEscape(netsukoTailwindCssUrl()); ?>?v=1.2.0">
+    <link rel="stylesheet" href="<?php $this->options->themeUrl('style.css'); ?>?v=1.2.0">
 
     <script>
         if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -99,29 +99,4 @@
         </div>
     </div>
 
-    <script>
-        const drawer = document.getElementById('mobile-drawer');
-        const overlay = document.getElementById('drawer-overlay');
-        const panel = document.getElementById('drawer-panel');
-        const openBtn = document.getElementById('mobile-menu-open');
-        const closeBtn = document.getElementById('mobile-menu-close');
-
-        function openDrawer() {
-            drawer.classList.remove('hidden');
-            void drawer.offsetWidth; 
-            overlay.classList.remove('opacity-0');
-            panel.classList.remove('translate-x-full');
-            document.body.style.overflow = 'hidden'; 
-        }
-
-        function closeDrawer() {
-            overlay.classList.add('opacity-0');
-            panel.classList.add('translate-x-full');
-            document.body.style.overflow = '';
-            setTimeout(() => drawer.classList.add('hidden'), 300);
-        }
-
-        openBtn.addEventListener('click', openDrawer);
-        closeBtn.addEventListener('click', closeDrawer);
-        overlay.addEventListener('click', closeDrawer);
-    </script>
+    <div id="netsuko-pjax-container" class="contents">

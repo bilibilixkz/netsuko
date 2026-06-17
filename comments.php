@@ -76,12 +76,18 @@
 
 <?php netsukoCommentCaptchaFooter($this); ?>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
+<script data-netsuko-rerun="true">
+(function () {
+    window.NetsukoTheme = window.NetsukoTheme || {};
+    window.NetsukoTheme.initCommentForm = function () {
     const form = document.getElementById('comment-form');
     if (!form) {
         return;
     }
+    if (form.dataset.netsukoCommentReady === 'true') {
+        return;
+    }
+    form.dataset.netsukoCommentReady = 'true';
 
     const notice = document.getElementById('comment-form-notice');
     const showNotice = function (message) {
@@ -146,5 +152,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     });
-});
+    };
+
+    window.NetsukoTheme.initCommentForm();
+})();
 </script>

@@ -85,6 +85,16 @@ body::after {
     transition: background-image 0.5s ease;
 }
 
+#netsuko-pjax-container {
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+html.netsuko-pjax-loading #netsuko-pjax-container {
+    opacity: 0.55;
+    transform: translateY(4px);
+    pointer-events: none;
+}
+
 
 .pagination { 
     margin-top: 3rem; 

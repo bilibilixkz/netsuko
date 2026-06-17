@@ -89,6 +89,26 @@ function themeConfig($form)
     );
     $form->addInput($fancyboxCustomJsUrl);
 
+    netsukoConfigSection($form, 'PJAX 全局无刷新', '控制站内链接的无刷新切换。后台、动作地址和表单提交会自动避开。');
+
+    $pjaxEnabled = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'pjaxEnabled',
+        array('on' => _t('开启 PJAX'), 'off' => _t('关闭 PJAX')),
+        'on',
+        _t('PJAX 无刷新'),
+        _t('开启后会拦截普通站内链接，仅替换主题内容区域，并在失败时自动回退为普通跳转。')
+    );
+    $form->addInput($pjaxEnabled);
+
+    $pjaxExcludePaths = new \Typecho\Widget\Helper\Form\Element\Textarea(
+        'pjaxExcludePaths',
+        NULL,
+        "/admin/\n/action/\n/install.php\n/index.php/action/",
+        _t('PJAX 排除路径'),
+        _t('一行一个路径片段。链接中包含这些片段时不会使用 PJAX，适合后台、动作地址、下载页或特殊页面。')
+    );
+    $form->addInput($pjaxExcludePaths);
+
     // Banner与座右铭设置
     netsukoConfigSection($form, '首页 Banner 与座右铭', '控制首页视觉焦点、座右铭样式和 Banner 展示效果。');
 
@@ -511,6 +531,8 @@ function netsukoConfigBackupTools($form): void {
         'fancyboxAssetSource',
         'fancyboxCustomCssUrl',
         'fancyboxCustomJsUrl',
+        'pjaxEnabled',
+        'pjaxExcludePaths',
         'motto',
         'mottoFont',
         'mottoQuotes',
@@ -980,6 +1002,27 @@ function netsukoFancyboxAssets(): array {
         default:
             return $local;
     }
+}
+
+function netsukoPjaxEnabled(): bool {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    return (string) ($options->pjaxEnabled ?: 'on') === 'on';
+}
+
+function netsukoPjaxExcludePaths(): array {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $raw = trim((string) ($options->pjaxExcludePaths ?: "/admin/\n/action/\n/install.php\n/index.php/action/"));
+    $paths = preg_split('/\r\n|\r|\n/', $raw);
+    $paths = array_map('trim', is_array($paths) ? $paths : []);
+    $paths = array_values(array_filter($paths, static function ($path) {
+        return $path !== '';
+    }));
+
+    return $paths;
+}
+
+function netsukoPjaxScriptUrl(): string {
+    return netsukoThemeAssetUrl('assets/js/netsuko-pjax.js');
 }
 
 function netsukoLinkify($html) {

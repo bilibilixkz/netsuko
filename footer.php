@@ -1,5 +1,7 @@
 <?php if (!defined('__TYPECHO_ROOT_DIR__')) exit; ?>
 
+</div>
+
 <footer class="mt-20 border-t border-gray-200/50 dark:border-white/5 bg-white dark:bg-darkBg transition-colors duration-500">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 py-12">    
         <div class="text-center">
@@ -56,23 +58,21 @@
     </svg>
 </button>
 
+<?php if (netsukoPjaxEnabled()): ?>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const backToTopBtn = document.getElementById('back-to-top');
-        window.addEventListener('scroll', function() {
-            if (window.scrollY > 400) {
-                backToTopBtn.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-5');
-                backToTopBtn.classList.add('opacity-100', 'pointer-events-auto', 'translate-y-0');
-            } else {
-                backToTopBtn.classList.add('opacity-0', 'pointer-events-none', 'translate-y-5');
-                backToTopBtn.classList.remove('opacity-100', 'pointer-events-auto', 'translate-y-0');
-            }
-        });
-        backToTopBtn.addEventListener('click', function() {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        });
-    });
+    window.NetsukoPjaxConfig = {
+        enabled: true,
+        container: '#netsuko-pjax-container',
+        excludes: <?php echo json_encode(netsukoPjaxExcludePaths(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>
+    };
 </script>
+<script src="<?php echo netsukoEscape(netsukoPjaxScriptUrl()); ?>?v=1.2.0" defer></script>
+<?php else: ?>
+<script>
+    window.NetsukoPjaxConfig = { enabled: false };
+</script>
+<script src="<?php echo netsukoEscape(netsukoPjaxScriptUrl()); ?>?v=1.2.0" defer></script>
+<?php endif; ?>
 
 </body>
 </html>
