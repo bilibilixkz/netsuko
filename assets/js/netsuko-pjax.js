@@ -6,6 +6,8 @@
     var containerSelector = config.container || '#netsuko-pjax-container';
     var activeRequest = null;
     var loadedExternalScripts = {};
+    var progressTimer = null;
+    var loadingStartedAt = 0;
 
     function $(selector, root) {
         return (root || document).querySelector(selector);
@@ -69,8 +71,44 @@
     }
 
     function setLoading(isLoading) {
+        ensureProgressBar();
+        window.clearTimeout(progressTimer);
+
         document.documentElement.classList.toggle('netsuko-pjax-loading', isLoading);
         document.body.classList.toggle('netsuko-pjax-loading', isLoading);
+
+        if (isLoading) {
+            loadingStartedAt = Date.now();
+            document.documentElement.classList.remove('netsuko-pjax-done');
+            document.documentElement.dataset.netsukoPjaxState = 'loading';
+            return;
+        }
+
+        document.documentElement.classList.add('netsuko-pjax-done');
+        document.documentElement.dataset.netsukoPjaxState = 'ready';
+        progressTimer = window.setTimeout(function () {
+            document.documentElement.classList.remove('netsuko-pjax-done');
+        }, 420);
+    }
+
+    function finishLoading() {
+        var elapsed = Date.now() - loadingStartedAt;
+        var delay = Math.max(0, 280 - elapsed);
+
+        window.setTimeout(function () {
+            setLoading(false);
+        }, delay);
+    }
+
+    function ensureProgressBar() {
+        if ($('#netsuko-pjax-progress')) {
+            return;
+        }
+
+        var progress = document.createElement('div');
+        progress.id = 'netsuko-pjax-progress';
+        progress.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(progress);
     }
 
     function closeDrawer() {
@@ -323,7 +361,7 @@
             }
             window.location.href = url.href;
         }).finally(function () {
-            setLoading(false);
+            finishLoading();
             activeRequest = null;
         });
     }

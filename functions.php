@@ -944,7 +944,18 @@ function netsukoMailto($value) {
 
 function netsukoThemeAssetUrl(string $path): string {
     $options = \Typecho\Widget::widget('Widget_Options');
-    return rtrim((string) $options->themeUrl, '/') . '/' . ltrim($path, '/');
+    $path = ltrim($path, '/');
+
+    if (method_exists($options, 'themeUrl')) {
+        ob_start();
+        $options->themeUrl($path);
+        $url = trim((string) ob_get_clean());
+        if ($url !== '') {
+            return $url;
+        }
+    }
+
+    return rtrim((string) $options->themeUrl, '/') . '/' . $path;
 }
 
 function netsukoAssetExternalUrl($value, string $fallback): string {
@@ -965,9 +976,9 @@ function netsukoTailwindCssUrl(): string {
         case 'custom':
             return netsukoAssetExternalUrl($options->tailwindCustomUrl, $local);
         case 'jsdelivr':
-            return 'https://cdn.jsdelivr.net/gh/ScDuckXu/netsuko_typecho_theme@main/assets/css/tailwind.css';
+            return 'https://cdn.jsdelivr.net/gh/ScDuckXu/netsuko_typecho_theme@dev/assets/css/tailwind.css';
         case 'github':
-            return 'https://raw.githubusercontent.com/ScDuckXu/netsuko_typecho_theme/main/assets/css/tailwind.css';
+            return 'https://cdn.statically.io/gh/ScDuckXu/netsuko_typecho_theme/dev/assets/css/tailwind.css';
         case 'local':
         default:
             return $local;
@@ -995,8 +1006,8 @@ function netsukoFancyboxAssets(): array {
             ];
         case 'github':
             return [
-                'css' => 'https://raw.githubusercontent.com/fancyapps/ui/main/dist/fancybox/fancybox.css',
-                'js' => 'https://raw.githubusercontent.com/fancyapps/ui/main/dist/fancybox/fancybox.umd.js'
+                'css' => 'https://cdn.statically.io/gh/fancyapps/ui/main/dist/fancybox/fancybox.css',
+                'js' => 'https://cdn.statically.io/gh/fancyapps/ui/main/dist/fancybox/fancybox.umd.js'
             ];
         case 'local':
         default:
