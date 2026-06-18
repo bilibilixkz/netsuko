@@ -6,8 +6,9 @@
     var containerSelector = config.container || '#netsuko-pjax-container';
     var activeRequest = null;
     var loadedExternalScripts = {};
-    var progressTimer = null;
-    var loadingStartedAt = 0;
+    var transitionTimer = null;
+    var readingProgressFrame = null;
+    var motionObserver = null;
 
     function $(selector, root) {
         return (root || document).querySelector(selector);
@@ -71,44 +72,121 @@
     }
 
     function setLoading(isLoading) {
-        ensureProgressBar();
-        window.clearTimeout(progressTimer);
+        ensureProgressIndicators();
+        window.clearTimeout(transitionTimer);
 
         document.documentElement.classList.toggle('netsuko-pjax-loading', isLoading);
         document.body.classList.toggle('netsuko-pjax-loading', isLoading);
 
         if (isLoading) {
-            loadingStartedAt = Date.now();
-            document.documentElement.classList.remove('netsuko-pjax-done');
+            document.documentElement.classList.remove('netsuko-pjax-complete', 'netsuko-page-enter');
             document.documentElement.dataset.netsukoPjaxState = 'loading';
             return;
         }
 
-        document.documentElement.classList.add('netsuko-pjax-done');
+        document.documentElement.classList.add('netsuko-pjax-complete');
         document.documentElement.dataset.netsukoPjaxState = 'ready';
-        progressTimer = window.setTimeout(function () {
-            document.documentElement.classList.remove('netsuko-pjax-done');
-        }, 420);
+        transitionTimer = window.setTimeout(function () {
+            document.documentElement.classList.remove('netsuko-pjax-complete');
+        }, 520);
     }
 
-    function finishLoading() {
-        var elapsed = Date.now() - loadingStartedAt;
-        var delay = Math.max(0, 280 - elapsed);
+    function ensureProgressIndicators() {
+        if (!$('#netsuko-pjax-progress')) {
+            var pjaxProgress = document.createElement('div');
+            pjaxProgress.id = 'netsuko-pjax-progress';
+            pjaxProgress.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(pjaxProgress);
+        }
 
-        window.setTimeout(function () {
-            setLoading(false);
-        }, delay);
+        if (!$('#netsuko-reading-progress')) {
+            var readingProgress = document.createElement('div');
+            var readingProgressBar = document.createElement('span');
+            readingProgress.id = 'netsuko-reading-progress';
+            readingProgress.setAttribute('aria-hidden', 'true');
+            readingProgress.appendChild(readingProgressBar);
+            document.body.appendChild(readingProgress);
+        }
     }
 
-    function ensureProgressBar() {
-        if ($('#netsuko-pjax-progress')) {
+    function updateReadingProgress() {
+        var bar = $('#netsuko-reading-progress span');
+        if (!bar) {
             return;
         }
 
-        var progress = document.createElement('div');
-        progress.id = 'netsuko-pjax-progress';
-        progress.setAttribute('aria-hidden', 'true');
-        document.body.appendChild(progress);
+        var doc = document.documentElement;
+        var max = Math.max(0, doc.scrollHeight - window.innerHeight);
+        var progress = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0;
+        var isActive = max > 160;
+
+        document.documentElement.classList.toggle('netsuko-reading-active', isActive);
+        bar.style.transform = 'scaleX(' + progress.toFixed(4) + ')';
+    }
+
+    function scheduleReadingProgress() {
+        if (readingProgressFrame) {
+            window.cancelAnimationFrame(readingProgressFrame);
+        }
+
+        readingProgressFrame = window.requestAnimationFrame(function () {
+            readingProgressFrame = null;
+            updateReadingProgress();
+        });
+    }
+
+    function restartPageEnter() {
+        document.documentElement.classList.remove('netsuko-page-enter');
+        void document.documentElement.offsetWidth;
+        document.documentElement.classList.add('netsuko-page-enter');
+    }
+
+    function prepareMotionTargets(root) {
+        var scope = root || document;
+        var targets = $all([
+            '#home-banner',
+            '#main > div > article',
+            '#main > aside',
+            '#comments',
+            '#respond',
+            '.pagination'
+        ].join(','), scope);
+
+        if (motionObserver) {
+            motionObserver.disconnect();
+        }
+
+        motionObserver = 'IntersectionObserver' in window ? new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) {
+                    return;
+                }
+
+                entry.target.classList.add('is-visible');
+                motionObserver.unobserve(entry.target);
+            });
+        }, { rootMargin: '0px 0px -8% 0px', threshold: 0.12 }) : null;
+
+        targets.forEach(function (node, index) {
+            node.dataset.netsukoMotion = 'true';
+            node.style.setProperty('--netsuko-motion-delay', Math.min(index * 55, 220) + 'ms');
+
+            if (motionObserver) {
+                motionObserver.observe(node);
+            } else {
+                node.classList.add('is-visible');
+            }
+        });
+    }
+
+    function initMotionEvents() {
+        if (document.documentElement.dataset.netsukoMotionEventsReady === 'true') {
+            return;
+        }
+
+        document.documentElement.dataset.netsukoMotionEventsReady = 'true';
+        window.addEventListener('scroll', scheduleReadingProgress, { passive: true });
+        window.addEventListener('resize', scheduleReadingProgress);
     }
 
     function closeDrawer() {
@@ -209,9 +287,18 @@
             theme.initGallery();
         }
         theme.initTurnstile(root);
+        theme.initMotion(root);
         updateActiveNavigation();
         document.dispatchEvent(new CustomEvent('netsuko:pjax:ready', { detail: { root: root || document } }));
     }
+
+    theme.initMotion = function (root) {
+        ensureProgressIndicators();
+        initMotionEvents();
+        restartPageEnter();
+        prepareMotionTargets(root || document);
+        scheduleReadingProgress();
+    };
 
     function copyHeadAssets(newDocument) {
         var selector = 'link[rel="stylesheet"], style';
@@ -361,7 +448,7 @@
             }
             window.location.href = url.href;
         }).finally(function () {
-            finishLoading();
+            setLoading(false);
             activeRequest = null;
         });
     }
@@ -387,6 +474,7 @@
         window.addEventListener('popstate', function () {
             navigate(window.location.href, { fromPopState: true });
         });
+
     }
 
     if (document.readyState === 'loading') {

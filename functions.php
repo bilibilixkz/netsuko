@@ -49,7 +49,7 @@ function themeConfig($form)
         $assetSourceOptions,
         'local',
         _t('Tailwind CSS 来源'),
-        _t('建议保持本地。自建 CDN 选择项已预留，填写下方 URL 后生效。')
+        _t('建议保持本地。自建 CDN 选择后需填写下方 CSS/JS URL 方可生效。')
     );
     $form->addInput($tailwindAssetSource);
 
@@ -67,7 +67,7 @@ function themeConfig($form)
         $assetSourceOptions,
         'local',
         _t('Fancybox 来源'),
-        _t('画廊页使用。自建 CDN 选择项已预留，填写下方 CSS/JS URL 后生效。')
+        _t('画廊页使用。自建 CDN 选择后需填写下方 CSS/JS URL 方可生效。')
     );
     $form->addInput($fancyboxAssetSource);
 
@@ -944,18 +944,7 @@ function netsukoMailto($value) {
 
 function netsukoThemeAssetUrl(string $path): string {
     $options = \Typecho\Widget::widget('Widget_Options');
-    $path = ltrim($path, '/');
-
-    if (method_exists($options, 'themeUrl')) {
-        ob_start();
-        $options->themeUrl($path);
-        $url = trim((string) ob_get_clean());
-        if ($url !== '') {
-            return $url;
-        }
-    }
-
-    return rtrim((string) $options->themeUrl, '/') . '/' . $path;
+    return rtrim((string) $options->themeUrl, '/') . '/' . ltrim($path, '/');
 }
 
 function netsukoAssetExternalUrl($value, string $fallback): string {
@@ -976,9 +965,9 @@ function netsukoTailwindCssUrl(): string {
         case 'custom':
             return netsukoAssetExternalUrl($options->tailwindCustomUrl, $local);
         case 'jsdelivr':
-            return 'https://cdn.jsdelivr.net/gh/ScDuckXu/netsuko_typecho_theme@dev/assets/css/tailwind.css';
+            return 'https://cdn.jsdelivr.net/gh/ScDuckXu/netsuko_typecho_theme@main/assets/css/tailwind.css';
         case 'github':
-            return 'https://cdn.statically.io/gh/ScDuckXu/netsuko_typecho_theme/dev/assets/css/tailwind.css';
+            return 'https://raw.githubusercontent.com/ScDuckXu/netsuko_typecho_theme/main/assets/css/tailwind.css';
         case 'local':
         default:
             return $local;
@@ -1006,8 +995,8 @@ function netsukoFancyboxAssets(): array {
             ];
         case 'github':
             return [
-                'css' => 'https://cdn.statically.io/gh/fancyapps/ui/main/dist/fancybox/fancybox.css',
-                'js' => 'https://cdn.statically.io/gh/fancyapps/ui/main/dist/fancybox/fancybox.umd.js'
+                'css' => 'https://raw.githubusercontent.com/fancyapps/ui/main/dist/fancybox/fancybox.css',
+                'js' => 'https://raw.githubusercontent.com/fancyapps/ui/main/dist/fancybox/fancybox.umd.js'
             ];
         case 'local':
         default:

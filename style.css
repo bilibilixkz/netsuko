@@ -12,6 +12,7 @@
     --border-hover: rgba(57,197,187,0.6);
     --grid-line: rgba(0, 0, 0, 0.03); 
     --glow-radial: rgba(57,197,187,0.08); 
+    --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 .dark {
     --teal: #39c5bb;    
@@ -86,40 +87,105 @@ body::after {
 }
 
 #netsuko-pjax-container {
-    transition: opacity 0.22s ease, transform 0.22s ease;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+#netsuko-pjax-container > * {
+    transition: opacity 0.24s var(--motion-ease), translate 0.24s var(--motion-ease), filter 0.24s var(--motion-ease);
 }
 
 html.netsuko-pjax-loading #netsuko-pjax-container {
-    opacity: 0.5;
-    transform: translateY(6px);
+    opacity: 0.55;
+    transform: translateY(4px);
+    pointer-events: none;
+}
+
+html.netsuko-pjax-loading #netsuko-pjax-container > * {
+    opacity: 0.58;
+    filter: saturate(0.92);
+    translate: 0 6px;
+}
+
+html.netsuko-page-enter #netsuko-pjax-container > * {
+    animation: netsukoPageEnter 0.46s var(--motion-ease) both;
+}
+
+#netsuko-pjax-progress,
+#netsuko-reading-progress {
+    position: fixed;
+    left: 0;
+    z-index: 9999;
+    width: 100%;
     pointer-events: none;
 }
 
 #netsuko-pjax-progress {
-    position: fixed;
     top: 0;
-    left: 0;
-    z-index: 9999;
-    width: 100%;
     height: 3px;
-    pointer-events: none;
     opacity: 0;
     transform: scaleX(0);
     transform-origin: left center;
-    background: linear-gradient(90deg, #39c5bb, #00d2ff, #67e8f9);
-    box-shadow: 0 0 16px rgba(0, 210, 255, 0.45);
-    transition: transform 0.34s ease, opacity 0.2s ease;
+    background: linear-gradient(90deg, #39c5bb, #67e8f9, #f0fdfa);
+    box-shadow: 0 0 18px rgba(57,197,187,0.45);
+    transition: transform 0.38s var(--motion-ease), opacity 0.22s ease;
 }
 
 html.netsuko-pjax-loading #netsuko-pjax-progress {
     opacity: 1;
-    transform: scaleX(0.78);
+    transform: scaleX(0.82);
 }
 
-html.netsuko-pjax-done #netsuko-pjax-progress {
+html.netsuko-pjax-complete #netsuko-pjax-progress {
     opacity: 0;
     transform: scaleX(1);
-    transition: transform 0.2s ease, opacity 0.35s ease 0.08s;
+    transition: transform 0.2s ease-out, opacity 0.38s ease 0.08s;
+}
+
+#netsuko-reading-progress {
+    top: 64px;
+    height: 2px;
+    opacity: 0;
+    background: transparent;
+    transition: opacity 0.24s ease;
+}
+
+#netsuko-reading-progress span {
+    display: block;
+    width: 100%;
+    height: 100%;
+    transform: scaleX(0);
+    transform-origin: left center;
+    background: linear-gradient(90deg, var(--teal), #67e8f9);
+    box-shadow: 0 0 12px var(--teal-glow);
+}
+
+html.netsuko-reading-active #netsuko-reading-progress {
+    opacity: 1;
+}
+
+@keyframes netsukoPageEnter {
+    from {
+        opacity: 0;
+        translate: 0 10px;
+        filter: saturate(0.94);
+    }
+    to {
+        opacity: 1;
+        translate: 0 0;
+        filter: saturate(1);
+    }
+}
+
+[data-netsuko-motion] {
+    opacity: 0;
+    translate: 0 16px;
+    transition: opacity 0.56s var(--motion-ease), translate 0.56s var(--motion-ease), transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease, background-color 0.5s ease;
+    transition-delay: var(--netsuko-motion-delay, 0ms);
+}
+
+[data-netsuko-motion].is-visible {
+    opacity: 1;
+    translate: 0 0;
 }
 
 
@@ -371,4 +437,24 @@ html.dark .netsuko-form-notice {
 .post-content table {
     overflow-x: auto;
     display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #netsuko-pjax-container,
+    #netsuko-pjax-container > *,
+    #netsuko-pjax-progress,
+    #netsuko-reading-progress,
+    [data-netsuko-motion] {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    html.netsuko-pjax-loading #netsuko-pjax-container,
+    html.netsuko-pjax-loading #netsuko-pjax-container > *,
+    [data-netsuko-motion] {
+        opacity: 1;
+        transform: none;
+        translate: none;
+        filter: none;
+    }
 }

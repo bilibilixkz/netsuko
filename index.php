@@ -1,8 +1,8 @@
 <?php
 /**
- * 使用Tailwind CSS书写。https://github.com/ScDuckXu/netsuko_typecho_theme
+ * 悦己绮世，自由如风。https://github.com/ScDuckXu/netsuko_typecho_theme
  * @package Netsuko
- * @author DuckXu
+ * @author Nazuki_Etsuko
  * @version 1.2.0
  * @link https://duckxu.com
  */
