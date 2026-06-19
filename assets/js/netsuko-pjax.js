@@ -24,6 +24,16 @@
             left.search === right.search;
     }
 
+    function normalizeNavigationPath(pathname) {
+        var path = pathname.replace(/\/+$/, '') || '/';
+        return path === '/index.php' ? '/' : path;
+    }
+
+    function sameNavigationUrl(left, right) {
+        return left.origin === right.origin &&
+            normalizeNavigationPath(left.pathname) === normalizeNavigationPath(right.pathname);
+    }
+
     function getExcludeText(url) {
         return url.pathname + url.search + url.hash;
     }
@@ -147,7 +157,6 @@
             '#home-banner',
             '#main > div > article',
             '#main > aside',
-            '#comments',
             '#respond',
             '.pagination'
         ].join(','), scope);
@@ -165,7 +174,7 @@
                 entry.target.classList.add('is-visible');
                 motionObserver.unobserve(entry.target);
             });
-        }, { rootMargin: '0px 0px -8% 0px', threshold: 0.12 }) : null;
+        }, { rootMargin: '0px 0px -8% 0px', threshold: 0 }) : null;
 
         targets.forEach(function (node, index) {
             node.dataset.netsukoMotion = 'true';
@@ -277,7 +286,7 @@
         });
     };
 
-    function runLifecycle(root) {
+    function runLifecycle(root, currentHref) {
         theme.initMobileDrawer();
         theme.initBackToTop();
         if (typeof theme.initCommentForm === 'function') {
@@ -288,8 +297,8 @@
         }
         theme.initTurnstile(root);
         theme.initMotion(root);
-        updateActiveNavigation();
-        document.dispatchEvent(new CustomEvent('netsuko:pjax:ready', { detail: { root: root || document } }));
+        updateActiveNavigation(currentHref);
+        document.dispatchEvent(new CustomEvent('netsuko:pjax:ready', { detail: { root: root || document, url: currentHref || window.location.href } }));
     }
 
     theme.initMotion = function (root) {
@@ -366,18 +375,24 @@
         return chain;
     }
 
-    function updateActiveNavigation() {
-        var current = new URL(window.location.href);
+    function updateActiveNavigation(currentHref) {
+        var current = new URL(currentHref || window.location.href, window.location.href);
         $all('#header nav a, #mobile-drawer nav a').forEach(function (link) {
             var url = new URL(link.href, window.location.href);
-            var isActive = samePageUrl(url, current);
+            var isActive = sameNavigationUrl(url, current);
             link.classList.toggle('text-teal', isActive);
             link.classList.toggle('border-teal', isActive && link.closest('#mobile-drawer'));
             link.classList.toggle('dark:border-teal', isActive && link.closest('#mobile-drawer'));
+            link.classList.toggle('netsuko-nav-active', isActive);
+            if (isActive) {
+                link.setAttribute('aria-current', 'page');
+            } else {
+                link.removeAttribute('aria-current');
+            }
         });
     }
 
-    function updateDocument(newDocument) {
+    function updateDocument(newDocument, currentHref) {
         var oldContainer = $(containerSelector);
         var newContainer = $(containerSelector, newDocument);
         if (!oldContainer || !newContainer) {
@@ -392,7 +407,7 @@
             return executeContainerScripts(oldContainer);
         }).then(function () {
             document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true, cancelable: true }));
-            runLifecycle(oldContainer);
+            runLifecycle(oldContainer, currentHref);
         });
     }
 
@@ -435,11 +450,12 @@
             return response.text();
         }).then(function (html) {
             var newDocument = new DOMParser().parseFromString(html, 'text/html');
-            return updateDocument(newDocument);
+            return updateDocument(newDocument, url.href);
         }).then(function () {
             if (!options.fromPopState) {
                 window.history.pushState({ netsukoPjax: true }, '', url.href);
             }
+            updateActiveNavigation(url.href);
             scrollAfterNavigation(url);
             document.dispatchEvent(new CustomEvent('netsuko:pjax:complete', { detail: { url: url.href } }));
         }).catch(function (error) {
@@ -468,6 +484,7 @@
             }
 
             event.preventDefault();
+            updateActiveNavigation(link.href);
             navigate(link.href);
         });
 

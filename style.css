@@ -91,7 +91,7 @@ body::after {
 }
 
 #netsuko-pjax-container > * {
-    transition: opacity 0.24s var(--motion-ease), translate 0.24s var(--motion-ease), filter 0.24s var(--motion-ease);
+    transition: opacity 0.24s var(--motion-ease), translate 0.24s var(--motion-ease);
 }
 
 html.netsuko-pjax-loading #netsuko-pjax-container {
@@ -102,7 +102,6 @@ html.netsuko-pjax-loading #netsuko-pjax-container {
 
 html.netsuko-pjax-loading #netsuko-pjax-container > * {
     opacity: 0.58;
-    filter: saturate(0.92);
     translate: 0 6px;
 }
 
@@ -167,12 +166,10 @@ html.netsuko-reading-active #netsuko-reading-progress {
     from {
         opacity: 0;
         translate: 0 10px;
-        filter: saturate(0.94);
     }
     to {
         opacity: 1;
         translate: 0 0;
-        filter: saturate(1);
     }
 }
 
@@ -186,6 +183,20 @@ html.netsuko-reading-active #netsuko-reading-progress {
 [data-netsuko-motion].is-visible {
     opacity: 1;
     translate: 0 0;
+}
+
+.netsuko-nav-active {
+    color: var(--teal) !important;
+}
+
+#mobile-drawer .netsuko-nav-active {
+    border-color: var(--teal) !important;
+}
+
+#comments[data-netsuko-motion] {
+    opacity: 1;
+    translate: 0 0;
+    transition: none;
 }
 
 
@@ -217,6 +228,40 @@ html.netsuko-reading-active #netsuko-reading-progress {
     color: var(--teal); 
     box-shadow: 0 0 15px var(--teal-glow); 
     transform: translateY(-2px); 
+}
+
+.comment-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.comment-pagination li a,
+.comment-pagination li span {
+    display: inline-flex;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 0.625rem;
+    background: var(--card-bg);
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.comment-pagination li.current a,
+.comment-pagination li.current span,
+.comment-pagination li a:hover {
+    border-color: var(--teal);
+    background: var(--teal-dim);
+    color: var(--teal);
+    transform: translateY(-1px);
 }
 
 @keyframes fadeUp { 

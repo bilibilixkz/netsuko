@@ -268,6 +268,33 @@ function themeConfig($form)
     );
     $form->addInput($turnstileSecretKey);
 
+    $commentPaginationEnabled = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'commentPaginationEnabled',
+        array('on' => _t('开启评论分页'), 'off' => _t('沿用 Typecho 全局设置')),
+        'on',
+        _t('评论分页'),
+        _t('建议开启。评论较多时只渲染当前页，明显降低移动端首屏压力。')
+    );
+    $form->addInput($commentPaginationEnabled);
+
+    $commentPaginationSize = new \Typecho\Widget\Helper\Form\Element\Text(
+        'commentPaginationSize',
+        NULL,
+        '20',
+        _t('每页评论数'),
+        _t('建议 10-30。过大仍会增加移动端渲染压力。')
+    );
+    $form->addInput($commentPaginationSize);
+
+    $commentPaginationDisplay = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'commentPaginationDisplay',
+        array('last' => _t('默认显示最后一页'), 'first' => _t('默认显示第一页')),
+        'last',
+        _t('默认评论页'),
+        _t('最后一页更适合新评论优先可见；第一页更适合从头阅读长讨论。')
+    );
+    $form->addInput($commentPaginationDisplay);
+
     netsukoConfigSection($form, '评论邮件提醒', '通过 SMTP 发送评论与回复通知，可自定义标题和正文模板。');
 
     $commentMailEnabled = new \Typecho\Widget\Helper\Form\Element\Radio(
@@ -559,6 +586,9 @@ function netsukoConfigBackupTools($form): void {
         'commentCaptchaMode',
         'turnstileSiteKey',
         'turnstileSecretKey',
+        'commentPaginationEnabled',
+        'commentPaginationSize',
+        'commentPaginationDisplay',
         'commentMailEnabled',
         'commentMailOwnerStatuses',
         'commentMailNotifyOwner',
@@ -1023,6 +1053,21 @@ function netsukoPjaxExcludePaths(): array {
 
 function netsukoPjaxScriptUrl(): string {
     return netsukoThemeAssetUrl('assets/js/netsuko-pjax.js');
+}
+
+function netsukoApplyCommentPagination(): void {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    if ((string) ($options->commentPaginationEnabled ?: 'on') !== 'on') {
+        return;
+    }
+
+    $size = (int) ($options->commentPaginationSize ?: 20);
+    $size = max(5, min(50, $size));
+    $display = (string) ($options->commentPaginationDisplay ?: 'last');
+
+    $options->commentsPageBreak = 1;
+    $options->commentsPageSize = $size;
+    $options->commentsPageDisplay = $display === 'first' ? 'first' : 'last';
 }
 
 function netsukoLinkify($html) {

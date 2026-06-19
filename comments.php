@@ -1,6 +1,7 @@
 <?php if (!defined('__TYPECHO_ROOT_DIR__')) exit; ?>
 
 <div id="comments" class="mt-12 bg-white dark:bg-darkCard rounded-2xl border border-gray-200/50 dark:border-white/5 shadow-sm p-6 md:p-10">
+    <?php netsukoApplyCommentPagination(); ?>
     <?php $this->comments()->to($comments); ?>
     
     <?php if ($comments->have()): ?>
@@ -12,7 +13,7 @@
         <?php $comments->listComments(); ?>
         
         <div class="mt-8 flex justify-center">
-            <?php $comments->pageNav('&laquo;', '&raquo;', 3, '...', array('wrapTag' => 'ul', 'wrapClass' => 'flex gap-2', 'itemTag' => 'li', 'currentClass' => 'text-teal font-bold')); ?>
+            <?php $comments->pageNav('&laquo;', '&raquo;', 3, '...', array('wrapTag' => 'ul', 'wrapClass' => 'comment-pagination', 'itemTag' => 'li', 'currentClass' => 'current')); ?>
         </div>
         
     <?php endif; ?>
