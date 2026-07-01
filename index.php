@@ -56,7 +56,7 @@ $hasBanner = $bannerUrl || $bannerDarkUrl;
 
     <div class="relative z-10 text-center px-4">
         <h1 id="home-motto" class="text-3xl md:text-5xl <?php echo $this->options->mottoFont == 'sans' ? 'font-sans not-italic' : 'font-playfair italic'; ?> font-semibold text-glow transition-all duration-500">
-            <?php echo $this->options->mottoQuotes == 'show' ? '"' : ''; ?><?php $this->options->motto(); ?><?php echo $this->options->mottoQuotes == 'show' ? '"' : ''; ?>
+            <?php echo $this->options->mottoQuotes == 'show' ? '"' : ''; ?><?php $this->options->mottoBanner(); ?><?php echo $this->options->mottoQuotes == 'show' ? '"' : ''; ?>
         </h1>
     </div>
 </div>
