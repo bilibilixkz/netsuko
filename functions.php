@@ -112,7 +112,7 @@ function themeConfig($form)
     // Banner与座右铭设置
     netsukoConfigSection($form, '首页 Banner 与座右铭', '控制首页视觉焦点、座右铭样式和 Banner 展示效果。');
 
-    $mottoBanner = new \Typecho\Widget\Helper\Form\Element\Text('mottoBanner', null, Helper::options()->title, _t('Banner 文本'), _t('显示在首页 Banner 中，默认与站点标题一致'));
+    $mottoBanner = new \Typecho\Widget\Helper\Form\Element\Text('mottoBanner', null, Helper::options()->motto, _t('Banner 文本'), _t('显示在首页 Banner 中，默认与座右铭一致'));
     $form->addInput($mottoBanner);
 
     $motto = new \Typecho\Widget\Helper\Form\Element\Text('motto', null, '永远相信美好的事情即将发生', _t('座右铭'), _t('显示在侧栏名片中'));
