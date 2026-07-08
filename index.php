@@ -3,7 +3,7 @@
  * 悦己绮世，自由如风。https://github.com/ScDuckXu/netsuko_typecho_theme
  * @package Netsuko
  * @author Nazuki_Etsuko
- * @version 1.2.0
+ * @version 1.2.1
  * @link https://duckxu.com
  */
 if (!defined('__TYPECHO_ROOT_DIR__')) exit;
@@ -64,8 +64,17 @@ $hasBanner = $bannerUrl || $bannerDarkUrl;
 <main class="flex-grow w-full max-w-6xl mx-auto px-4 sm:px-6 pb-12">
     <div class="grid grid-cols-1 md:grid-cols-12 gap-8" id="main" role="main">
         <div class="md:col-span-8 lg:col-span-9 space-y-8">
+            <?php
+            $stickyPosts = ((int) $this->_currentPage <= 1) ? netsukoStickyPosts() : [];
+            $stickyCids = array_map('intval', array_column($stickyPosts, 'cid'));
+            foreach ($stickyPosts as $stickyPost) {
+                netsukoRenderPostCardFromArray($stickyPost, true);
+            }
+            ?>
+
             <?php if ($this->have()): ?>
                 <?php while ($this->next()): ?>
+                    <?php if (in_array((int) $this->cid, $stickyCids, true)) continue; ?>
                     <article class="bg-white dark:bg-darkCard rounded-2xl border border-gray-200/50 dark:border-white/5 shadow-sm overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:border-teal/50 hover:shadow-glow flex flex-col sm:flex-row group" itemscope itemtype="http://schema.org/BlogPosting">
                         <div class="w-full sm:w-1/3 h-48 sm:h-auto bg-cover bg-center transition-transform duration-500 group-hover:scale-105" style="background-image: url('<?php echo netsukoCssUrl(getPostThumb($this)); ?>');"></div>
                         

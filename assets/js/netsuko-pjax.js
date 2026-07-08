@@ -9,6 +9,8 @@
     var transitionTimer = null;
     var readingProgressFrame = null;
     var motionObserver = null;
+    var fancyboxAssetsPromise = null;
+    var postLightboxSelector = '.post-content a.netsuko-image-lightbox[data-fancybox]';
 
     function $(selector, root) {
         return (root || document).querySelector(selector);
@@ -198,6 +200,178 @@
         window.addEventListener('resize', scheduleReadingProgress);
     }
 
+    function withAssetVersion(url) {
+        if (!url || !config.assetVersion || /[?&]v=/.test(url)) {
+            return url;
+        }
+
+        return url + (url.indexOf('?') === -1 ? '?' : '&') + 'v=' + encodeURIComponent(config.assetVersion);
+    }
+
+    function ensureStylesheet(url) {
+        if (!url) {
+            return;
+        }
+
+        var href = withAssetVersion(url);
+        var exists = $all('link[rel="stylesheet"]').some(function (link) {
+            return link.href === href || link.href === url;
+        });
+
+        if (exists) {
+            return;
+        }
+
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.dataset.netsukoFancyboxAsset = 'true';
+        document.head.appendChild(link);
+    }
+
+    function ensureScript(url) {
+        if (!url || window.Fancybox) {
+            return Promise.resolve();
+        }
+
+        var src = withAssetVersion(url);
+        var existing = $all('script[src]').filter(function (script) {
+            return script.src === src || script.src === url;
+        })[0];
+
+        if (existing) {
+            return new Promise(function (resolve) {
+                if (window.Fancybox) {
+                    resolve();
+                    return;
+                }
+
+                existing.addEventListener('load', resolve, { once: true });
+                existing.addEventListener('error', resolve, { once: true });
+                window.setTimeout(resolve, 1200);
+            });
+        }
+
+        return new Promise(function (resolve) {
+            var script = document.createElement('script');
+            script.src = src;
+            script.async = true;
+            script.dataset.netsukoFancyboxAsset = 'true';
+            script.onload = resolve;
+            script.onerror = resolve;
+            document.body.appendChild(script);
+        });
+    }
+
+    function ensureFancyboxAssets() {
+        if (window.Fancybox) {
+            return Promise.resolve();
+        }
+
+        if (fancyboxAssetsPromise) {
+            return fancyboxAssetsPromise;
+        }
+
+        var assets = config.fancybox || {};
+        ensureStylesheet(assets.css);
+        fancyboxAssetsPromise = ensureScript(assets.js).then(function () {
+            return window.Fancybox || null;
+        });
+
+        return fancyboxAssetsPromise;
+    }
+
+    function imageUrlFromElement(image) {
+        return image.currentSrc || image.getAttribute('src') || image.src || '';
+    }
+
+    function isImageHref(href) {
+        return /^data:image\//i.test(href) ||
+            /\.(?:avif|gif|jpe?g|png|webp|bmp|svg)(?:[?#].*)?$/i.test(href);
+    }
+
+    function imageCaption(image) {
+        var figureCaption = image.closest('figure') ? $('figcaption', image.closest('figure')) : null;
+        return image.getAttribute('data-caption') ||
+            image.getAttribute('alt') ||
+            image.getAttribute('title') ||
+            (figureCaption ? figureCaption.textContent.trim() : '');
+    }
+
+    function preparePostLightbox(root) {
+        var scope = root || document;
+        var images = $all('.post-content img', scope);
+        var prepared = 0;
+
+        images.forEach(function (image) {
+            if (image.dataset.netsukoLightboxReady === 'true' || image.closest('[data-no-lightbox]')) {
+                return;
+            }
+
+            var href = imageUrlFromElement(image);
+            if (!href) {
+                return;
+            }
+
+            var mediaNode = image.parentElement && image.parentElement.tagName.toLowerCase() === 'picture'
+                ? image.parentElement
+                : image;
+            var parentNode = mediaNode.parentNode;
+            var link = parentNode && parentNode.tagName && parentNode.tagName.toLowerCase() === 'a'
+                ? parentNode
+                : null;
+
+            if (link && !isImageHref(link.href) && !link.hasAttribute('data-fancybox')) {
+                return;
+            }
+
+            if (!link) {
+                link = document.createElement('a');
+                link.href = href;
+                parentNode.insertBefore(link, mediaNode);
+                link.appendChild(mediaNode);
+            }
+
+            link.href = link.href || href;
+            link.dataset.fancybox = link.dataset.fancybox || 'post-images';
+            link.dataset.caption = link.dataset.caption || imageCaption(image);
+            link.classList.add('netsuko-image-lightbox');
+            link.setAttribute('aria-label', link.dataset.caption || image.getAttribute('alt') || 'View full-size image');
+            image.dataset.netsukoLightboxReady = 'true';
+            prepared++;
+        });
+
+        return prepared;
+    }
+
+    theme.initPostLightbox = function (root) {
+        if (!preparePostLightbox(root || document)) {
+            return;
+        }
+
+        ensureFancyboxAssets().then(function () {
+            if (!window.Fancybox || typeof window.Fancybox.bind !== 'function') {
+                return;
+            }
+
+            if (typeof window.Fancybox.unbind === 'function') {
+                window.Fancybox.unbind(postLightboxSelector);
+            }
+
+            window.Fancybox.bind(postLightboxSelector, {
+                contentClick: 'toggleZoom',
+                backdropClick: 'close',
+                Toolbar: {
+                    display: {
+                        left: ['infobar'],
+                        middle: ['zoomIn', 'zoomOut', 'toggle1to1'],
+                        right: ['download', 'close']
+                    }
+                }
+            });
+        });
+    };
+
     function closeDrawer() {
         var drawer = $('#mobile-drawer');
         var overlay = $('#drawer-overlay');
@@ -295,6 +469,10 @@
         if (typeof theme.initGallery === 'function') {
             theme.initGallery();
         }
+        if (typeof theme.initDevices === 'function') {
+            theme.initDevices();
+        }
+        theme.initPostLightbox(root);
         theme.initTurnstile(root);
         theme.initMotion(root);
         updateActiveNavigation(currentHref);

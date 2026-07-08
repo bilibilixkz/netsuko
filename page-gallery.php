@@ -9,7 +9,7 @@ $this->need('header.php');
 $fancyboxAssets = netsukoFancyboxAssets();
 ?>
 
-<link rel="stylesheet" href="<?php echo netsukoEscape($fancyboxAssets['css']); ?>?v=1.2.0" />
+<link rel="stylesheet" href="<?php echo netsukoEscape($fancyboxAssets['css']); ?>?v=1.2.1" />
 
 <main class="flex-grow w-full max-w-6xl mx-auto px-4 sm:px-6 py-12 md:py-20 z-10 relative">
     
@@ -74,7 +74,7 @@ $fancyboxAssets = netsukoFancyboxAssets();
 
 </main>
 
-<script src="<?php echo netsukoEscape($fancyboxAssets['js']); ?>?v=1.2.0"></script>
+<script src="<?php echo netsukoEscape($fancyboxAssets['js']); ?>?v=1.2.1"></script>
 <script data-netsuko-rerun="true">
     window.NetsukoTheme = window.NetsukoTheme || {};
     window.NetsukoTheme.initGallery = function (attempt) {

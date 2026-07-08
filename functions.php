@@ -5,6 +5,7 @@ if (!defined('__TYPECHO_ROOT_DIR__')) exit;
 \Widget\Feedback::pluginHandle()->finishComment = 'netsukoHandleCommentMailNotification';
 \Widget\Comments\Edit::pluginHandle()->finishComment = 'netsukoHandleCommentMailNotification';
 \Widget\Comments\Edit::pluginHandle()->mark = 'netsukoHandleCommentStatusMailNotification';
+register_shutdown_function('netsukoMaybeRunAutoBackup');
 
 function themeConfig($form)
 {
@@ -34,6 +35,17 @@ function themeConfig($form)
         _t('填入图片 URL。当文章没有设置“自定义头图”，且正文中也没有任何图片时，显示这张图片。')
     );
     $form->addInput($defaultThumb);
+
+    netsukoConfigSection($form, '设备页面', '为 devices 自定义页面提供默认数据。页面自定义字段 devicesData 或页面正文 JSON 会优先覆盖这里。');
+
+    $devicePageData = new \Typecho\Widget\Helper\Form\Element\Textarea(
+        'devicePageData',
+        NULL,
+        NULL,
+        _t('默认设备数据 JSON'),
+        _t('支持分组、图片、状态、标签、规格与备注。可在页面自定义字段 devicesData 中覆盖。')
+    );
+    $form->addInput($devicePageData);
 
     netsukoConfigSection($form, '静态资源', '选择 Tailwind CSS 与 Fancybox 的加载来源。默认使用主题内置本地资源。');
 
@@ -402,6 +414,53 @@ function themeConfig($form)
     $commentMailTimeout = new \Typecho\Widget\Helper\Form\Element\Text('commentMailTimeout', NULL, '10', _t('SMTP 超时秒数'), _t('建议 5-30 秒。'));
     $form->addInput($commentMailTimeout);
 
+    netsukoConfigSection($form, '自动备份邮件', '按设置间隔生成 Typecho 兼容数据备份，并通过上方 SMTP 配置发送到指定邮箱。');
+
+    $autoBackupEnabled = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'autoBackupEnabled',
+        array('off' => _t('关闭'), 'on' => _t('开启')),
+        'off',
+        _t('自动备份'),
+        _t('启用后由前台或后台访问触发检查，到达间隔才执行，不依赖服务器 Cron。')
+    );
+    $form->addInput($autoBackupEnabled);
+
+    $autoBackupIntervalHours = new \Typecho\Widget\Helper\Form\Element\Text(
+        'autoBackupIntervalHours',
+        NULL,
+        '24',
+        _t('备份间隔（小时）'),
+        _t('最小 1 小时。建议生产环境设置为 24、72 或 168。')
+    );
+    $form->addInput($autoBackupIntervalHours);
+
+    $autoBackupRecipients = new \Typecho\Widget\Helper\Form\Element\Textarea(
+        'autoBackupRecipients',
+        NULL,
+        NULL,
+        _t('备份收件邮箱'),
+        _t('一行一个邮箱地址，或用英文逗号分隔。留空则不会发送。')
+    );
+    $form->addInput($autoBackupRecipients);
+
+    $autoBackupSubject = new \Typecho\Widget\Helper\Form\Element\Text(
+        'autoBackupSubject',
+        NULL,
+        '[{site}] Typecho 自动备份 {date}',
+        _t('备份邮件标题'),
+        _t('支持变量：{site}、{date}、{time}、{file}、{size}。')
+    );
+    $form->addInput($autoBackupSubject);
+
+    $autoBackupTemplate = new \Typecho\Widget\Helper\Form\Element\Textarea(
+        'autoBackupTemplate',
+        NULL,
+        netsukoDefaultBackupMailTemplate(),
+        _t('备份邮件正文模板'),
+        _t('支持 HTML 与变量：{site}、{date}、{time}、{file}、{size}。')
+    );
+    $form->addInput($autoBackupTemplate);
+
     netsukoConfigSection($form, '邮件模板', '标题和正文支持变量：{site}、{title}、{author}、{mail}、{status}、{text}、{permalink}、{parent_author}、{parent_text}、{time}。');
 
     $commentMailOwnerSubject = new \Typecho\Widget\Helper\Form\Element\Text(
@@ -556,6 +615,7 @@ function netsukoConfigBackupTools($form): void {
         'authorAvatar',
         'postFont',
         'defaultThumb',
+        'devicePageData',
         'tailwindAssetSource',
         'tailwindCustomUrl',
         'fancyboxAssetSource',
@@ -609,6 +669,11 @@ function netsukoConfigBackupTools($form): void {
         'commentMailFromEmail',
         'commentMailReplyTo',
         'commentMailTimeout',
+        'autoBackupEnabled',
+        'autoBackupIntervalHours',
+        'autoBackupRecipients',
+        'autoBackupSubject',
+        'autoBackupTemplate',
         'commentMailOwnerSubject',
         'commentMailVisitorSubject',
         'commentMailOwnerTemplate',
@@ -918,6 +983,15 @@ function themeFields($layout) {
     );
     $layout->addItem($custom_excerpt);
 
+    $stickyPost = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'stickyPost',
+        array('off' => _t('不置顶'), 'on' => _t('首页置顶')),
+        'off',
+        _t('首页置顶'),
+        _t('开启后会在首页第一页顶部显示红标【置顶】，多篇置顶文章按发布时间从新到旧排序。')
+    );
+    $layout->addItem($stickyPost);
+
     $subtitle = new \Typecho\Widget\Helper\Form\Element\Text(
         'subtitle', 
         NULL, 
@@ -926,6 +1000,15 @@ function themeFields($layout) {
         _t('显示在页面大标题下方的说明文字。留空则在部分模板下显示默认文案。')
     );
     $layout->addItem($subtitle);
+
+    $devicesData = new \Typecho\Widget\Helper\Form\Element\Textarea(
+        'devicesData',
+        NULL,
+        NULL,
+        _t('设备页面数据 JSON'),
+        _t('仅 devices 页面模板使用。留空时读取页面正文 JSON，再读取后台默认设备数据。')
+    );
+    $layout->addItem($devicesData);
 }
 
 function netsukoEscape($value) {
@@ -946,6 +1029,240 @@ function netsukoUrl($value, string $fallback = '#') {
     }
 
     return netsukoEscape($url);
+}
+
+function netsukoDevicesPayload($archive): array {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $sources = [
+        (string) ($archive->fields->devicesData ?? ''),
+        trim((string) ($archive->text ?? '')),
+        (string) ($options->devicePageData ?? '')
+    ];
+    $lastError = '';
+
+    foreach ($sources as $source) {
+        $source = trim($source);
+        if ($source === '') {
+            continue;
+        }
+
+        $parsed = json_decode($source, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($parsed)) {
+            $lastError = json_last_error_msg();
+            continue;
+        }
+
+        return [
+            'groups' => netsukoNormalizeDeviceGroups($parsed),
+            'error' => ''
+        ];
+    }
+
+    return [
+        'groups' => [],
+        'error' => $lastError
+    ];
+}
+
+function netsukoNormalizeDeviceGroups(array $data): array {
+    if (isset($data['groups']) && is_array($data['groups'])) {
+        $groups = $data['groups'];
+    } elseif (isset($data['devices']) && is_array($data['devices'])) {
+        $groups = [[
+            'name' => $data['title'] ?? 'Devices',
+            'desc' => $data['desc'] ?? ($data['description'] ?? ''),
+            'items' => $data['devices']
+        ]];
+    } elseif (netsukoArrayIsList($data) && isset($data[0]) && is_array($data[0]) && (isset($data[0]['items']) || isset($data[0]['devices']))) {
+        $groups = $data;
+    } else {
+        $groups = [[
+            'name' => 'Devices',
+            'desc' => '',
+            'items' => $data
+        ]];
+    }
+
+    $normalized = [];
+    foreach ($groups as $group) {
+        if (!is_array($group)) {
+            continue;
+        }
+
+        $items = $group['items'] ?? ($group['devices'] ?? []);
+        if (!is_array($items)) {
+            continue;
+        }
+
+        $devices = [];
+        foreach ($items as $item) {
+            if (is_array($item) && trim((string) ($item['name'] ?? '')) !== '') {
+                $devices[] = $item;
+            }
+        }
+
+        if (empty($devices)) {
+            continue;
+        }
+
+        $normalized[] = [
+            'name' => (string) ($group['name'] ?? ($group['group'] ?? ($group['title'] ?? 'Devices'))),
+            'desc' => (string) ($group['desc'] ?? ($group['description'] ?? '')),
+            'items' => $devices
+        ];
+    }
+
+    return $normalized;
+}
+
+function netsukoArrayIsList(array $value): bool {
+    $index = 0;
+    foreach ($value as $key => $_) {
+        if ($key !== $index++) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function netsukoDeviceTags($tags): array {
+    if (is_string($tags)) {
+        $tags = preg_split('/[,，|]+/u', $tags, -1, PREG_SPLIT_NO_EMPTY);
+    }
+
+    if (!is_array($tags)) {
+        return [];
+    }
+
+    return array_values(array_filter(array_map(static function ($tag) {
+        return trim((string) $tag);
+    }, $tags), static function ($tag) {
+        return $tag !== '';
+    }));
+}
+
+function netsukoDeviceSpecs($specs): array {
+    if (!is_array($specs)) {
+        return [];
+    }
+
+    $result = [];
+    foreach ($specs as $key => $value) {
+        if (is_array($value)) {
+            $label = trim((string) ($value['label'] ?? ($value['name'] ?? $key)));
+            $text = trim((string) ($value['value'] ?? ($value['text'] ?? '')));
+        } else {
+            $label = trim((string) $key);
+            $text = trim((string) $value);
+        }
+
+        if ($label !== '' && $text !== '') {
+            $result[] = ['label' => $label, 'value' => $text];
+        }
+    }
+
+    return $result;
+}
+
+function netsukoStickyPosts(int $limit = 20): array {
+    $db = \Typecho\Db::get();
+    $rows = $db->fetchAll(
+        $db->select('table.contents.*')
+            ->from('table.contents')
+            ->join('table.fields', 'table.contents.cid = table.fields.cid')
+            ->where('table.contents.type = ?', 'post')
+            ->where('table.contents.status = ?', 'publish')
+            ->where('table.fields.name = ?', 'stickyPost')
+            ->where('table.fields.str_value = ?', 'on')
+            ->order('table.contents.created', \Typecho\Db::SORT_DESC)
+            ->limit($limit)
+    );
+
+    foreach ($rows as &$row) {
+        $row['fields'] = netsukoContentFields((int) $row['cid']);
+    }
+    unset($row);
+
+    return $rows;
+}
+
+function netsukoContentFields(int $cid): array {
+    if ($cid <= 0) {
+        return [];
+    }
+
+    $db = \Typecho\Db::get();
+    $rows = $db->fetchAll($db->select()->from('table.fields')->where('cid = ?', $cid));
+    $fields = [];
+
+    foreach ($rows as $row) {
+        $type = (string) ($row['type'] ?? 'str');
+        $fields[$row['name']] = $type === 'json'
+            ? json_decode((string) $row['str_value'], true)
+            : ($row[$type . '_value'] ?? null);
+    }
+
+    return $fields;
+}
+
+function netsukoContentThumb(array $content): string {
+    $fields = $content['fields'] ?? [];
+    if (!empty($fields['thumb'])) {
+        return (string) $fields['thumb'];
+    }
+
+    if (preg_match_all('/<img\b[^>]*?\bsrc=[\'"]([^\'"]+)[\'"][^>]*>/i', (string) ($content['text'] ?? ''), $matches) && isset($matches[1][0])) {
+        return $matches[1][0];
+    }
+
+    $defaultThumb = \Typecho\Widget::widget('Widget_Options')->defaultThumb;
+    if (!empty($defaultThumb)) {
+        return (string) $defaultThumb;
+    }
+
+    return Helper::options()->themeUrl . '/img/bg_watermark.jpg';
+}
+
+function netsukoContentExcerpt(array $content, int $length = 90): string {
+    $fields = $content['fields'] ?? [];
+    if (!empty($fields['custom_excerpt'])) {
+        return (string) $fields['custom_excerpt'];
+    }
+
+    $text = strip_tags((string) ($content['text'] ?? ''));
+    $text = preg_replace('/\s+/u', ' ', $text);
+    $text = trim((string) $text);
+    if (function_exists('mb_substr')) {
+        return mb_strlen($text, 'UTF-8') > $length ? mb_substr($text, 0, $length, 'UTF-8') . '...' : $text;
+    }
+
+    return strlen($text) > $length ? substr($text, 0, $length) . '...' : $text;
+}
+
+function netsukoRenderPostCardFromArray(array $post, bool $sticky = false): void {
+    $permalink = netsukoContentPermalink($post);
+    $title = netsukoEscape($post['title'] ?? '');
+    $thumb = netsukoCssUrl(netsukoContentThumb($post));
+    $created = (int) ($post['created'] ?? time());
+    $excerpt = netsukoEscape(netsukoContentExcerpt($post, 90));
+    ?>
+    <article class="bg-white dark:bg-darkCard rounded-2xl border border-gray-200/50 dark:border-white/5 shadow-sm overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:border-teal/50 hover:shadow-glow flex flex-col sm:flex-row group" itemscope itemtype="http://schema.org/BlogPosting">
+        <div class="w-full sm:w-1/3 h-48 sm:h-auto bg-cover bg-center transition-transform duration-500 group-hover:scale-105" style="background-image: url('<?php echo $thumb; ?>');"></div>
+
+        <div class="p-6 md:p-8 sm:w-2/3 flex flex-col justify-center relative z-10 bg-white dark:bg-darkCard">
+            <h2 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 group-hover:text-teal transition-colors mb-2 flex flex-wrap items-center gap-2">
+                <?php if ($sticky): ?><span class="netsuko-sticky-badge">置顶</span><?php endif; ?>
+                <a itemprop="url" href="<?php echo netsukoUrl($permalink); ?>"><?php echo $title; ?></a>
+            </h2>
+            <div class="text-sm text-gray-500 dark:text-gray-400 mb-4 flex items-center gap-4">
+                <time datetime="<?php echo date('c', $created); ?>"><?php echo date('Y-m-d', $created); ?></time>
+            </div>
+            <div class="post-content text-gray-600 dark:text-gray-300 leading-relaxed text-sm line-clamp-3">
+                <?php echo $excerpt; ?>
+            </div>
+        </div>
+    </article>
+    <?php
 }
 
 function netsukoCssUrl($value, string $fallback = '') {
@@ -1587,7 +1904,7 @@ function netsukoSmtpConfig(): array {
     ];
 }
 
-function netsukoSmtpSend(string $toEmail, string $toName, string $subject, string $html): void {
+function netsukoSmtpSend(string $toEmail, string $toName, string $subject, string $html, array $attachments = []): void {
     $config = netsukoSmtpConfig();
     if ($config['host'] === '' || $config['fromEmail'] === '' || !filter_var($config['fromEmail'], FILTER_VALIDATE_EMAIL)) {
         throw new \RuntimeException('SMTP host or sender email is not configured');
@@ -1632,7 +1949,7 @@ function netsukoSmtpSend(string $toEmail, string $toName, string $subject, strin
         netsukoSmtpCommand($socket, 'MAIL FROM:<' . $config['fromEmail'] . '>', [250]);
         netsukoSmtpCommand($socket, 'RCPT TO:<' . $toEmail . '>', [250, 251]);
         netsukoSmtpCommand($socket, 'DATA', [354]);
-        netsukoSmtpWrite($socket, netsukoBuildMailMessage($toEmail, $toName, $subject, $html, $config) . "\r\n.");
+        netsukoSmtpWrite($socket, netsukoBuildMailMessage($toEmail, $toName, $subject, $html, $config, $attachments) . "\r\n.");
         netsukoSmtpExpect($socket, [250]);
         netsukoSmtpCommand($socket, 'QUIT', [221]);
     } finally {
@@ -1640,15 +1957,13 @@ function netsukoSmtpSend(string $toEmail, string $toName, string $subject, strin
     }
 }
 
-function netsukoBuildMailMessage(string $toEmail, string $toName, string $subject, string $html, array $config): string {
+function netsukoBuildMailMessage(string $toEmail, string $toName, string $subject, string $html, array $config, array $attachments = []): string {
     $headers = [
         'Date: ' . date(DATE_RFC2822),
         'From: ' . netsukoMailAddress($config['fromEmail'], $config['fromName']),
         'To: ' . netsukoMailAddress($toEmail, $toName),
         'Subject: ' . netsukoMailHeaderEncode($subject),
         'MIME-Version: 1.0',
-        'Content-Type: text/html; charset=UTF-8',
-        'Content-Transfer-Encoding: base64',
         'Message-ID: <' . bin2hex(random_bytes(16)) . '@' . netsukoSmtpHostname() . '>'
     ];
 
@@ -1656,7 +1971,37 @@ function netsukoBuildMailMessage(string $toEmail, string $toName, string $subjec
         $headers[] = 'Reply-To: ' . netsukoMailAddress($config['replyTo'], $config['fromName']);
     }
 
-    return implode("\r\n", $headers) . "\r\n\r\n" . chunk_split(base64_encode($html));
+    if (empty($attachments)) {
+        $headers[] = 'Content-Type: text/html; charset=UTF-8';
+        $headers[] = 'Content-Transfer-Encoding: base64';
+        return implode("\r\n", $headers) . "\r\n\r\n" . chunk_split(base64_encode($html));
+    }
+
+    $boundary = '=_netsuko_' . bin2hex(random_bytes(12));
+    $headers[] = 'Content-Type: multipart/mixed; boundary="' . $boundary . '"';
+
+    $body = '--' . $boundary . "\r\n";
+    $body .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $body .= "Content-Transfer-Encoding: base64\r\n\r\n";
+    $body .= chunk_split(base64_encode($html)) . "\r\n";
+
+    foreach ($attachments as $attachment) {
+        $filename = preg_replace('/[^A-Za-z0-9._-]+/', '-', (string) ($attachment['filename'] ?? 'attachment.dat'));
+        $filename = trim($filename, '-_') ?: 'attachment.dat';
+        $contentType = preg_match('/^[A-Za-z0-9.+-]+\/[A-Za-z0-9.+-]+$/', (string) ($attachment['contentType'] ?? ''))
+            ? (string) $attachment['contentType']
+            : 'application/octet-stream';
+        $data = (string) ($attachment['data'] ?? '');
+
+        $body .= '--' . $boundary . "\r\n";
+        $body .= 'Content-Type: ' . $contentType . '; name="' . $filename . '"' . "\r\n";
+        $body .= "Content-Transfer-Encoding: base64\r\n";
+        $body .= 'Content-Disposition: attachment; filename="' . $filename . '"' . "\r\n\r\n";
+        $body .= chunk_split(base64_encode($data)) . "\r\n";
+    }
+
+    $body .= '--' . $boundary . '--';
+    return implode("\r\n", $headers) . "\r\n\r\n" . $body;
 }
 
 function netsukoMailAddress(string $email, string $name = ''): string {
@@ -1731,6 +2076,235 @@ function netsukoMailLog(string $level, string $message): void {
     } catch (\Throwable $e) {
         // Logging must never interrupt comments.
     }
+}
+
+function netsukoDefaultBackupMailTemplate(): string {
+    return <<<HTML
+<p>{site} 已生成一份 Typecho 自动备份。</p>
+<p><strong>生成时间：</strong>{time}</p>
+<p><strong>备份文件：</strong>{file}</p>
+<p><strong>文件大小：</strong>{size}</p>
+<p>附件为 Typecho 兼容备份文件，请妥善保存。</p>
+HTML;
+}
+
+function netsukoMaybeRunAutoBackup(): void {
+    try {
+        $options = \Typecho\Widget::widget('Widget_Options');
+        if ((string) ($options->autoBackupEnabled ?: 'off') !== 'on') {
+            return;
+        }
+
+        $recipients = netsukoBackupRecipients((string) $options->autoBackupRecipients);
+        if (empty($recipients)) {
+            return;
+        }
+
+        $interval = max(1, (int) ($options->autoBackupIntervalHours ?: 24)) * 3600;
+        $lastRun = (int) netsukoRuntimeOption('netsukoAutoBackupLastRun', '0');
+        if ($lastRun > 0 && time() - $lastRun < $interval) {
+            return;
+        }
+
+        $lockPath = netsukoUploadPath('netsuko-auto-backup.lock');
+        $lock = @fopen($lockPath, 'c+');
+        if (!$lock) {
+            return;
+        }
+
+        try {
+            if (!flock($lock, LOCK_EX | LOCK_NB)) {
+                return;
+            }
+
+            $lastRun = (int) netsukoRuntimeOption('netsukoAutoBackupLastRun', '0');
+            if ($lastRun > 0 && time() - $lastRun < $interval) {
+                return;
+            }
+
+            netsukoSetRuntimeOption('netsukoAutoBackupLastRun', (string) time());
+            $backup = netsukoBuildTypechoBackup();
+            netsukoSendAutoBackupMail($backup, $recipients);
+            netsukoSetRuntimeOption('netsukoAutoBackupLastStatus', 'sent ' . $backup['filename'] . ' at ' . date('Y-m-d H:i:s'));
+            netsukoBackupLog('info', 'sent ' . $backup['filename'] . ' to ' . implode(', ', $recipients));
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    } catch (\Throwable $e) {
+        netsukoSetRuntimeOption('netsukoAutoBackupLastStatus', 'failed at ' . date('Y-m-d H:i:s') . ': ' . $e->getMessage());
+        netsukoBackupLog('error', $e->getMessage());
+    }
+}
+
+function netsukoBackupRecipients(string $value): array {
+    $parts = preg_split('/[\s,;]+/', $value, -1, PREG_SPLIT_NO_EMPTY);
+    $emails = [];
+
+    foreach ($parts ?: [] as $part) {
+        $email = trim($part);
+        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $emails[strtolower($email)] = $email;
+        }
+    }
+
+    return array_values($emails);
+}
+
+function netsukoBuildTypechoBackup(): array {
+    $types = [
+        'contents' => 1,
+        'comments' => 2,
+        'metas' => 3,
+        'relationships' => 4,
+        'users' => 5,
+        'fields' => 6
+    ];
+    $fields = [
+        'contents' => [
+            'cid', 'title', 'slug', 'created', 'modified', 'text', 'order', 'authorId',
+            'template', 'type', 'status', 'password', 'commentsNum', 'allowComment', 'allowPing', 'allowFeed', 'parent'
+        ],
+        'comments' => [
+            'coid', 'cid', 'created', 'author', 'authorId', 'ownerId',
+            'mail', 'url', 'ip', 'agent', 'text', 'type', 'status', 'parent'
+        ],
+        'metas' => [
+            'mid', 'name', 'slug', 'type', 'description', 'count', 'order', 'parent'
+        ],
+        'relationships' => ['cid', 'mid'],
+        'users' => [
+            'uid', 'name', 'password', 'mail', 'url', 'screenName',
+            'created', 'activated', 'logged', 'group', 'authCode'
+        ],
+        'fields' => [
+            'cid', 'name', 'type', 'str_value', 'int_value', 'float_value'
+        ]
+    ];
+
+    $db = \Typecho\Db::get();
+    $header = str_replace('XXXX', '0001', '%TYPECHO_BACKUP_XXXX%');
+    $data = $header;
+
+    foreach ($types as $type => $typeId) {
+        $page = 1;
+        do {
+            $rows = $db->fetchAll($db->select()->from('table.' . $type)->page($page, 20));
+            $page++;
+
+            foreach ($rows as $row) {
+                $data .= netsukoBuildTypechoBackupBuffer($typeId, netsukoFilterBackupFields($row, $fields[$type]));
+            }
+        } while (count($rows) === 20);
+    }
+
+    $data .= $header;
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $host = parse_url((string) $options->siteUrl, PHP_URL_HOST) ?: 'typecho';
+    $filename = date('Ymd') . '_' . preg_replace('/[^A-Za-z0-9.-]+/', '-', $host) . '_netsuko_auto.dat';
+
+    return [
+        'filename' => $filename,
+        'data' => $data,
+        'size' => strlen($data)
+    ];
+}
+
+function netsukoFilterBackupFields(array $row, array $allowed): array {
+    $result = [];
+    foreach ($allowed as $key) {
+        $result[$key] = array_key_exists($key, $row) ? $row[$key] : null;
+    }
+    return $result;
+}
+
+function netsukoBuildTypechoBackupBuffer(int $type, array $data): string {
+    $body = '';
+    $schema = [];
+
+    foreach ($data as $key => $value) {
+        $schema[$key] = null === $value ? null : strlen((string) $value);
+        if (null !== $value) {
+            $body .= (string) $value;
+        }
+    }
+
+    return \Typecho\Common::buildBackupBuffer((string) $type, json_encode($schema), $body);
+}
+
+function netsukoSendAutoBackupMail(array $backup, array $recipients): void {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $context = [
+        'site' => (string) $options->title,
+        'date' => date('Y-m-d'),
+        'time' => date('Y-m-d H:i:s'),
+        'file' => (string) $backup['filename'],
+        'size' => netsukoFormatBytes((int) $backup['size'])
+    ];
+    $subject = netsukoRenderMailTemplate(
+        (string) ($options->autoBackupSubject ?: '[{site}] Typecho 自动备份 {date}'),
+        $context,
+        false
+    );
+    $body = netsukoRenderMailTemplate(
+        (string) ($options->autoBackupTemplate ?: netsukoDefaultBackupMailTemplate()),
+        $context,
+        true
+    );
+    $attachment = [
+        'filename' => (string) $backup['filename'],
+        'contentType' => 'application/octet-stream',
+        'data' => (string) $backup['data']
+    ];
+
+    foreach ($recipients as $email) {
+        netsukoSmtpSend($email, '', $subject, $body, [$attachment]);
+    }
+}
+
+function netsukoRuntimeOption(string $name, string $default = ''): string {
+    $db = \Typecho\Db::get();
+    $row = $db->fetchRow($db->select('value')->from('table.options')->where('name = ? AND user = ?', $name, 0)->limit(1));
+    return is_array($row) && array_key_exists('value', $row) ? (string) $row['value'] : $default;
+}
+
+function netsukoSetRuntimeOption(string $name, string $value): void {
+    $db = \Typecho\Db::get();
+    $exists = $db->fetchRow($db->select('name')->from('table.options')->where('name = ? AND user = ?', $name, 0)->limit(1));
+    if ($exists) {
+        $db->query($db->update('table.options')->rows(['value' => $value])->where('name = ? AND user = ?', $name, 0));
+        return;
+    }
+
+    $db->query($db->insert('table.options')->rows(['name' => $name, 'user' => 0, 'value' => $value]));
+}
+
+function netsukoUploadPath(string $filename): string {
+    $dir = (defined('__TYPECHO_UPLOAD_ROOT_DIR__') ? __TYPECHO_UPLOAD_ROOT_DIR__ : __TYPECHO_ROOT_DIR__)
+        . (defined('__TYPECHO_UPLOAD_DIR__') ? __TYPECHO_UPLOAD_DIR__ : '/usr/uploads');
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+
+    return rtrim($dir, '/\\') . DIRECTORY_SEPARATOR . $filename;
+}
+
+function netsukoBackupLog(string $level, string $message): void {
+    $line = '[' . date('Y-m-d H:i:s') . '] [' . strtoupper($level) . '] ' . $message . PHP_EOL;
+    @file_put_contents(netsukoUploadPath('netsuko-backup.log'), $line, FILE_APPEND | LOCK_EX);
+}
+
+function netsukoFormatBytes(int $bytes): string {
+    $units = ['B', 'KB', 'MB', 'GB'];
+    $size = max(0, $bytes);
+    $unit = 0;
+
+    while ($size >= 1024 && $unit < count($units) - 1) {
+        $size /= 1024;
+        $unit++;
+    }
+
+    return ($unit === 0 ? (string) $size : number_format($size, 2)) . ' ' . $units[$unit];
 }
 
 
