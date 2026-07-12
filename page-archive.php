@@ -21,13 +21,22 @@ $this->need('header.php');
         <?php
         // 翻页机制
         $stat = \Widget\Stat::alloc();
-        $pageSize = 50; // 每页显示的数量
-        $currentPage = $this->request->get('page', 1); // 获取当前页码，默认为 1
-        $totalPosts = $stat->publishedPostsNum;
-        $totalPages = ceil($totalPosts / $pageSize); // 计算总页数
+        $pageSize = 50;
+        $totalPosts = (int) $stat->publishedPostsNum;
+        $totalPages = max(1, (int) ceil($totalPosts / $pageSize));
+        $currentPage = max(1, (int) $this->request->get('page', 1));
+        $currentPage = min($currentPage, $totalPages);
 
         // 按页码和每页数量查询
-        $this->widget('Widget_Contents_Post_Recent', 'pageSize=' . $pageSize . '&page=' . $currentPage)->to($archives);
+        $db = \Typecho\Db::get();
+        $archives = $db->fetchAll(
+            $db->select('table.contents.cid', 'table.contents.title', 'table.contents.slug', 'table.contents.type', 'table.contents.created')
+                ->from('table.contents')
+                ->where('table.contents.type = ?', 'post')
+                ->where('table.contents.status = ?', 'publish')
+                ->order('table.contents.created', \Typecho\Db::SORT_DESC)
+                ->page($currentPage, $pageSize)
+        );
         
         $year = 0; 
         $month = 0; 
@@ -35,9 +44,9 @@ $this->need('header.php');
         
         $output = '<div class="relative border-l-2 border-gray-100 dark:border-white/10 ml-3 md:ml-6 space-y-10">';
         
-        while($archives->next()){
-            $year_tmp = date('Y', $archives->created);
-            $month_tmp = date('m', $archives->created);
+        foreach ($archives as $archive) {
+            $year_tmp = date('Y', (int) $archive['created']);
+            $month_tmp = date('m', (int) $archive['created']);
             
             // 判断是否跨月或跨年
             if ($year != $year_tmp || $month != $month_tmp) {
@@ -75,8 +84,8 @@ $this->need('header.php');
             // 文章单项 (保持原有设计)
             $output .= '<article class="group relative">';
             $output .= '<div class="absolute -left-[45px] top-2 w-2 h-2 rounded-full bg-gray-200 dark:bg-gray-700 group-hover:bg-teal transition-colors"></div>';
-            $output .= '<time class="text-xs text-gray-400 font-mono tracking-wider block mb-1">' . date('M d, Y', $archives->created) . '</time>';
-            $output .= '<a href="' . netsukoUrl($archives->permalink) . '" class="text-lg font-medium text-gray-800 dark:text-gray-200 group-hover:text-teal transition-colors block">' . netsukoEscape($archives->title) . '</a>';
+            $output .= '<time class="text-xs text-gray-400 font-mono tracking-wider block mb-1">' . date('M d, Y', (int) $archive['created']) . '</time>';
+            $output .= '<a href="' . netsukoUrl(netsukoContentPermalink($archive)) . '" class="text-lg font-medium text-gray-800 dark:text-gray-200 group-hover:text-teal transition-colors block">' . netsukoEscape($archive['title']) . '</a>';
             $output .= '</article>';
         }
         
