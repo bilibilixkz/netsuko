@@ -101,6 +101,35 @@ function themeConfig($form)
     );
     $form->addInput($fancyboxCustomJsUrl);
 
+    netsukoConfigSection($form, '内容增强', '控制正文图片懒加载、代码高亮与 LaTeX 渲染。相关资源均默认从主题本地加载。');
+
+    $lazyLoadEnabled = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'lazyLoadEnabled',
+        array('on' => _t('开启 LazyLoad'), 'off' => _t('关闭 LazyLoad')),
+        'on',
+        _t('正文媒体懒加载'),
+        _t('开启后会为文章正文中的图片与 iframe 添加原生 loading="lazy"，并在 PJAX 后重新初始化。')
+    );
+    $form->addInput($lazyLoadEnabled);
+
+    $codeHighlightEnabled = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'codeHighlightEnabled',
+        array('on' => _t('开启代码高亮'), 'off' => _t('关闭代码高亮')),
+        'on',
+        _t('代码高亮'),
+        _t('使用主题内置 Highlight.js 高亮正文代码块，并提供复制按钮。')
+    );
+    $form->addInput($codeHighlightEnabled);
+
+    $latexDefaultEnabled = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'latexDefaultEnabled',
+        array('off' => _t('默认关闭'), 'on' => _t('默认开启')),
+        'off',
+        _t('LaTeX 默认状态'),
+        _t('默认关闭更稳妥。可在每篇文章或独立页的自定义字段中单独覆盖。')
+    );
+    $form->addInput($latexDefaultEnabled);
+
     netsukoConfigSection($form, 'PJAX 全局无刷新', '控制站内链接的无刷新切换。后台、动作地址和表单提交会自动避开。');
 
     $pjaxEnabled = new \Typecho\Widget\Helper\Form\Element\Radio(
@@ -608,6 +637,25 @@ function netsukoThemeVersion(): string {
     return '0.0.0';
 }
 
+function netsukoVersionedAssetUrl(string $url): string {
+    if (preg_match('/[?&]v=/i', $url)) {
+        return $url;
+    }
+
+    $version = rawurlencode(netsukoThemeVersion());
+    $fragment = '';
+    $fragmentPosition = strpos($url, '#');
+
+    if ($fragmentPosition !== false) {
+        $fragment = substr($url, $fragmentPosition);
+        $url = substr($url, 0, $fragmentPosition);
+    }
+
+    $separator = strpos($url, '?') === false ? '?' : '&';
+
+    return $url . $separator . 'v=' . $version . $fragment;
+}
+
 function netsukoConfigBackupTools($form): void {
     $version = netsukoThemeVersion();
     $fields = [
@@ -621,6 +669,9 @@ function netsukoConfigBackupTools($form): void {
         'fancyboxAssetSource',
         'fancyboxCustomCssUrl',
         'fancyboxCustomJsUrl',
+        'lazyLoadEnabled',
+        'codeHighlightEnabled',
+        'latexDefaultEnabled',
         'pjaxEnabled',
         'pjaxExcludePaths',
         'mottoBanner',
@@ -1009,6 +1060,19 @@ function themeFields($layout) {
         _t('仅 devices 页面模板使用。留空时读取页面正文 JSON，再读取后台默认设备数据。')
     );
     $layout->addItem($devicesData);
+
+    $enableLatex = new \Typecho\Widget\Helper\Form\Element\Radio(
+        'enableLatex',
+        array(
+            'default' => _t('跟随主题默认'),
+            'on' => _t('启用 LaTeX'),
+            'off' => _t('禁用 LaTeX')
+        ),
+        'default',
+        _t('LaTeX 解析'),
+        _t('仅影响当前文章或独立页。启用后支持 $...$、$$...$$、\\(...\\) 与 \\[...\\]。')
+    );
+    $layout->addItem($enableLatex);
 }
 
 function netsukoEscape($value) {
@@ -1374,6 +1438,105 @@ function netsukoPjaxExcludePaths(): array {
 
 function netsukoPjaxScriptUrl(): string {
     return netsukoThemeAssetUrl('assets/js/netsuko-pjax.js');
+}
+
+function netsukoLazyLoadEnabled(): bool {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    return (string) ($options->lazyLoadEnabled ?: 'on') === 'on';
+}
+
+function netsukoCodeHighlightEnabled(): bool {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    return (string) ($options->codeHighlightEnabled ?: 'on') === 'on';
+}
+
+function netsukoContentAssets(): array {
+    return [
+        'lazyLoad' => netsukoLazyLoadEnabled(),
+        'highlight' => [
+            'enabled' => netsukoCodeHighlightEnabled(),
+            'js' => netsukoThemeAssetUrl('assets/vendor/highlight/highlight.min.js')
+        ],
+        'latex' => [
+            'css' => netsukoThemeAssetUrl('assets/vendor/katex/katex.min.css'),
+            'js' => netsukoThemeAssetUrl('assets/vendor/katex/katex.min.js'),
+            'autoRenderJs' => netsukoThemeAssetUrl('assets/vendor/katex/contrib/auto-render.min.js')
+        ]
+    ];
+}
+
+function netsukoLatexEnabled($archive): bool {
+    $options = \Typecho\Widget::widget('Widget_Options');
+    $field = 'default';
+
+    if (isset($archive->fields) && isset($archive->fields->enableLatex)) {
+        $field = (string) $archive->fields->enableLatex;
+    }
+
+    if ($field === 'on') {
+        return true;
+    }
+
+    if ($field === 'off') {
+        return false;
+    }
+
+    return (string) ($options->latexDefaultEnabled ?: 'off') === 'on';
+}
+
+function netsukoRenderPostContent($archive): string {
+    ob_start();
+    $archive->content();
+    $html = (string) ob_get_clean();
+
+    return netsukoPreparePostContent($html);
+}
+
+function netsukoPreparePostContent(string $html): string {
+    if (!netsukoLazyLoadEnabled()) {
+        return $html;
+    }
+
+    return netsukoApplyNativeLazyLoad($html);
+}
+
+function netsukoApplyNativeLazyLoad(string $html): string {
+    if ($html === '') {
+        return $html;
+    }
+
+    return preg_replace_callback('/<(img|iframe)\b([^>]*)>/i', static function ($matches) {
+        $tag = strtolower($matches[1]);
+        $attrs = $matches[2];
+        $selfClosing = (bool) preg_match('/\/\s*$/', $attrs);
+
+        if ($selfClosing) {
+            $attrs = (string) preg_replace('/\/\s*$/', '', $attrs);
+        }
+
+        if (preg_match('/\sdata-no-lazy(?:\s*=\s*(["\']).*?\1|\s|$)/i', $attrs)) {
+            return $matches[0];
+        }
+
+        if (!preg_match('/\sloading\s*=/i', $attrs)) {
+            $attrs .= ' loading="lazy"';
+        }
+
+        if ($tag === 'img' && !preg_match('/\sdecoding\s*=/i', $attrs)) {
+            $attrs .= ' decoding="async"';
+        }
+
+        if (preg_match('/\sclass\s*=\s*(["\'])(.*?)\1/i', $attrs, $classMatch)) {
+            if (!preg_match('/(^|\s)netsuko-lazy-media(\s|$)/', $classMatch[2])) {
+                $updatedClass = $classMatch[1] . trim($classMatch[2] . ' netsuko-lazy-media') . $classMatch[1];
+                $attrs = preg_replace('/\sclass\s*=\s*(["\']).*?\1/i', ' class=' . $updatedClass, $attrs, 1);
+            }
+        } else {
+            $attrs .= ' class="netsuko-lazy-media"';
+        }
+
+        return '<' . $matches[1] . $attrs . ($selfClosing ? ' /' : '') . '>';
+    }, $html) ?? $html;
 }
 
 function netsukoApplyCommentPagination(): void {

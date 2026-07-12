@@ -15,9 +15,9 @@ foreach ($groups as $group) {
 $fancyboxAssets = netsukoFancyboxAssets();
 ?>
 
-<link rel="stylesheet" href="<?php echo netsukoEscape($fancyboxAssets['css']); ?>?v=1.2.1" />
+<link rel="stylesheet" href="<?php echo netsukoEscape(netsukoVersionedAssetUrl($fancyboxAssets['css'])); ?>" />
 
-<main class="flex-grow w-full max-w-6xl mx-auto px-4 sm:px-6 py-12 md:py-20 z-10 relative">
+<main class="devices-page flex-grow w-full max-w-6xl mx-auto px-4 sm:px-6 py-12 md:py-20 z-10 relative">
     <header class="devices-hero mb-10 md:mb-14">
         <div>
             <p class="devices-kicker">Devices</p>
@@ -158,7 +158,7 @@ $fancyboxAssets = netsukoFancyboxAssets();
     <?php $this->need('comments.php'); ?>
 </main>
 
-<script src="<?php echo netsukoEscape($fancyboxAssets['js']); ?>?v=1.2.1"></script>
+<script src="<?php echo netsukoEscape(netsukoVersionedAssetUrl($fancyboxAssets['js'])); ?>"></script>
 <script data-netsuko-rerun="true">
     window.NetsukoTheme = window.NetsukoTheme || {};
     window.NetsukoTheme.initDevices = function (attempt) {

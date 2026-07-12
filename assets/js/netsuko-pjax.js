@@ -10,6 +10,9 @@
     var readingProgressFrame = null;
     var motionObserver = null;
     var fancyboxAssetsPromise = null;
+    var highlightAssetsPromise = null;
+    var katexAssetsPromise = null;
+    var currentPjaxHref = window.location.href;
     var postLightboxSelector = '.post-content a.netsuko-image-lightbox[data-fancybox]';
 
     function $(selector, root) {
@@ -54,6 +57,10 @@
             return false;
         }
 
+        if (event.target.closest('.fancybox__container, [data-fancybox-close], [data-fancybox-button], [data-panzoom-action], .f-button')) {
+            return false;
+        }
+
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
             return false;
         }
@@ -68,6 +75,10 @@
 
         var rawHref = link.getAttribute('href') || '';
         if (!rawHref || rawHref.charAt(0) === '#' || /^(mailto:|tel:|javascript:)/i.test(rawHref)) {
+            return false;
+        }
+
+        if (link.hasAttribute('data-fancybox') || link.classList.contains('netsuko-image-lightbox') || isImageHref(rawHref) || isImageHref(link.href)) {
             return false;
         }
 
@@ -210,7 +221,7 @@
 
     function ensureStylesheet(url) {
         if (!url) {
-            return;
+            return Promise.resolve();
         }
 
         var href = withAssetVersion(url);
@@ -219,18 +230,22 @@
         });
 
         if (exists) {
-            return;
+            return Promise.resolve();
         }
 
-        var link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = href;
-        link.dataset.netsukoFancyboxAsset = 'true';
-        document.head.appendChild(link);
+        return new Promise(function (resolve) {
+            var link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = href;
+            link.dataset.netsukoAsset = 'true';
+            link.onload = resolve;
+            link.onerror = resolve;
+            document.head.appendChild(link);
+        });
     }
 
-    function ensureScript(url) {
-        if (!url || window.Fancybox) {
+    function ensureScript(url, test) {
+        if (!url || (typeof test === 'function' && test())) {
             return Promise.resolve();
         }
 
@@ -241,7 +256,7 @@
 
         if (existing) {
             return new Promise(function (resolve) {
-                if (window.Fancybox) {
+                if (typeof test === 'function' && test()) {
                     resolve();
                     return;
                 }
@@ -256,7 +271,7 @@
             var script = document.createElement('script');
             script.src = src;
             script.async = true;
-            script.dataset.netsukoFancyboxAsset = 'true';
+            script.dataset.netsukoAsset = 'true';
             script.onload = resolve;
             script.onerror = resolve;
             document.body.appendChild(script);
@@ -274,11 +289,67 @@
 
         var assets = config.fancybox || {};
         ensureStylesheet(assets.css);
-        fancyboxAssetsPromise = ensureScript(assets.js).then(function () {
+        fancyboxAssetsPromise = ensureScript(assets.js, function () {
+            return !!window.Fancybox;
+        }).then(function () {
             return window.Fancybox || null;
         });
 
         return fancyboxAssetsPromise;
+    }
+
+    function ensureHighlightAssets() {
+        var content = config.content || {};
+        var assets = content.highlight || {};
+        if (!assets.enabled) {
+            return Promise.resolve(null);
+        }
+
+        if (window.hljs) {
+            return Promise.resolve(window.hljs);
+        }
+
+        if (highlightAssetsPromise) {
+            return highlightAssetsPromise;
+        }
+
+        highlightAssetsPromise = ensureScript(assets.js, function () {
+            return !!window.hljs;
+        }).then(function () {
+            return window.hljs || null;
+        });
+
+        return highlightAssetsPromise;
+    }
+
+    function ensureKatexAssets() {
+        var content = config.content || {};
+        var assets = content.latex || {};
+
+        if (window.katex && window.renderMathInElement) {
+            return Promise.resolve(window.katex);
+        }
+
+        if (katexAssetsPromise) {
+            return katexAssetsPromise;
+        }
+
+        katexAssetsPromise = ensureStylesheet(assets.css)
+            .then(function () {
+                return ensureScript(assets.js, function () {
+                    return !!window.katex;
+                });
+            })
+            .then(function () {
+                return ensureScript(assets.autoRenderJs, function () {
+                    return !!window.renderMathInElement;
+                });
+            })
+            .then(function () {
+                return window.katex || null;
+            });
+
+        return katexAssetsPromise;
     }
 
     function imageUrlFromElement(image) {
@@ -334,6 +405,7 @@
 
             link.href = link.href || href;
             link.dataset.fancybox = link.dataset.fancybox || 'post-images';
+            link.dataset.noPjax = 'true';
             link.dataset.caption = link.dataset.caption || imageCaption(image);
             link.classList.add('netsuko-image-lightbox');
             link.setAttribute('aria-label', link.dataset.caption || image.getAttribute('alt') || 'View full-size image');
@@ -368,6 +440,178 @@
                         right: ['download', 'close']
                     }
                 }
+            });
+        });
+    };
+
+    theme.initLazyLoad = function (root) {
+        var content = config.content || {};
+        if (!content.lazyLoad) {
+            return;
+        }
+
+        $all('.post-content img, .post-content iframe', root || document).forEach(function (media) {
+            if (media.closest('[data-no-lazy]')) {
+                return;
+            }
+
+            if (!media.hasAttribute('loading')) {
+                media.setAttribute('loading', 'lazy');
+            }
+
+            if (media.tagName && media.tagName.toLowerCase() === 'img' && !media.hasAttribute('decoding')) {
+                media.setAttribute('decoding', 'async');
+            }
+
+            media.classList.add('netsuko-lazy-media');
+
+            if (media.complete || media.tagName.toLowerCase() === 'iframe') {
+                media.classList.add('is-loaded');
+                media.classList.remove('is-loading');
+                return;
+            }
+
+            if (media.dataset.netsukoLazyReady === 'true') {
+                return;
+            }
+
+            media.dataset.netsukoLazyReady = 'true';
+            media.classList.add('is-loading');
+            media.addEventListener('load', function () {
+                media.classList.add('is-loaded');
+                media.classList.remove('is-loading');
+            }, { once: true });
+            media.addEventListener('error', function () {
+                media.classList.add('is-loaded');
+                media.classList.remove('is-loading');
+            }, { once: true });
+        });
+    };
+
+    function copyTextFallback(text) {
+        var textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', 'readonly');
+        textarea.style.position = 'fixed';
+        textarea.style.top = '-9999px';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        var ok = false;
+        try {
+            ok = document.execCommand('copy');
+        } catch (error) {
+            ok = false;
+        }
+
+        document.body.removeChild(textarea);
+        return ok;
+    }
+
+    function addCodeCopyButton(wrapper, code) {
+        if (wrapper.dataset.netsukoCodeCopyReady === 'true') {
+            return;
+        }
+
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'netsuko-code-copy';
+        button.textContent = '复制';
+        button.setAttribute('aria-label', '复制代码');
+
+        button.addEventListener('click', function () {
+            var text = code.textContent || '';
+            var done = function (ok) {
+                button.textContent = ok ? '已复制' : '失败';
+                window.setTimeout(function () {
+                    button.textContent = '复制';
+                }, 1400);
+            };
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function () {
+                    done(true);
+                }).catch(function () {
+                    done(false);
+                });
+                return;
+            }
+
+            done(copyTextFallback(text));
+        });
+
+        wrapper.dataset.netsukoCodeCopyReady = 'true';
+        wrapper.appendChild(button);
+    }
+
+    theme.initCodeHighlight = function (root) {
+        var content = config.content || {};
+        var assets = content.highlight || {};
+        if (!assets.enabled) {
+            return;
+        }
+
+        var blocks = $all('.post-content pre code', root || document);
+        if (!blocks.length) {
+            return;
+        }
+
+        ensureHighlightAssets().then(function (hljs) {
+            blocks.forEach(function (code) {
+                var pre = code.closest('pre');
+                if (!pre) {
+                    return;
+                }
+
+                pre.classList.add('netsuko-code-block');
+
+                if (hljs && code.dataset.netsukoHighlighted !== 'true') {
+                    try {
+                        hljs.highlightElement(code);
+                        code.dataset.netsukoHighlighted = 'true';
+                    } catch (error) {
+                        code.dataset.netsukoHighlighted = 'failed';
+                    }
+                }
+
+                addCodeCopyButton(pre, code);
+            });
+        });
+    };
+
+    theme.initLatex = function (root) {
+        var scope = root || document;
+        var targets = $all('.post-content[data-netsuko-latex="on"]', scope);
+        if (!targets.length && scope.matches && scope.matches('.post-content[data-netsuko-latex="on"]')) {
+            targets = [scope];
+        }
+
+        if (!targets.length) {
+            return;
+        }
+
+        ensureKatexAssets().then(function () {
+            if (!window.renderMathInElement) {
+                return;
+            }
+
+            targets.forEach(function (target) {
+                if (target.dataset.netsukoLatexReady === 'true') {
+                    return;
+                }
+
+                window.renderMathInElement(target, {
+                    delimiters: [
+                        { left: '$$', right: '$$', display: true },
+                        { left: '\\[', right: '\\]', display: true },
+                        { left: '\\(', right: '\\)', display: false },
+                        { left: '$', right: '$', display: false }
+                    ],
+                    ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+                    throwOnError: false
+                });
+                target.dataset.netsukoLatexReady = 'true';
             });
         });
     };
@@ -472,6 +716,9 @@
         if (typeof theme.initDevices === 'function') {
             theme.initDevices();
         }
+        theme.initLazyLoad(root);
+        theme.initCodeHighlight(root);
+        theme.initLatex(root);
         theme.initPostLightbox(root);
         theme.initTurnstile(root);
         theme.initMotion(root);
@@ -633,6 +880,7 @@
             if (!options.fromPopState) {
                 window.history.pushState({ netsukoPjax: true }, '', url.href);
             }
+            currentPjaxHref = url.href;
             updateActiveNavigation(url.href);
             scrollAfterNavigation(url);
             document.dispatchEvent(new CustomEvent('netsuko:pjax:complete', { detail: { url: url.href } }));
@@ -667,6 +915,15 @@
         });
 
         window.addEventListener('popstate', function () {
+            var nextUrl = new URL(window.location.href, window.location.href);
+            var previousUrl = new URL(currentPjaxHref, window.location.href);
+
+            if (samePageUrl(nextUrl, previousUrl)) {
+                currentPjaxHref = nextUrl.href;
+                updateActiveNavigation(nextUrl.href);
+                return;
+            }
+
             navigate(window.location.href, { fromPopState: true });
         });
 

@@ -59,26 +59,29 @@
 </button>
 
 <?php $fancyboxAssets = netsukoFancyboxAssets(); ?>
+<?php $contentAssets = netsukoContentAssets(); ?>
 <?php if (netsukoPjaxEnabled()): ?>
 <script>
     window.NetsukoPjaxConfig = {
         enabled: true,
         container: '#netsuko-pjax-container',
         excludes: <?php echo json_encode(netsukoPjaxExcludePaths(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>,
-        assetVersion: '1.2.1',
-        fancybox: <?php echo json_encode($fancyboxAssets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>
+        assetVersion: <?php echo json_encode(netsukoThemeVersion(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>,
+        fancybox: <?php echo json_encode($fancyboxAssets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>,
+        content: <?php echo json_encode($contentAssets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>
     };
 </script>
-<script src="<?php echo netsukoEscape(netsukoPjaxScriptUrl()); ?>?v=1.2.1" defer></script>
+<script src="<?php echo netsukoEscape(netsukoVersionedAssetUrl(netsukoPjaxScriptUrl())); ?>" defer></script>
 <?php else: ?>
 <script>
     window.NetsukoPjaxConfig = {
         enabled: false,
-        assetVersion: '1.2.1',
-        fancybox: <?php echo json_encode($fancyboxAssets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>
+        assetVersion: <?php echo json_encode(netsukoThemeVersion(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>,
+        fancybox: <?php echo json_encode($fancyboxAssets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>,
+        content: <?php echo json_encode($contentAssets, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE); ?>
     };
 </script>
-<script src="<?php echo netsukoEscape(netsukoPjaxScriptUrl()); ?>?v=1.2.1" defer></script>
+<script src="<?php echo netsukoEscape(netsukoVersionedAssetUrl(netsukoPjaxScriptUrl())); ?>" defer></script>
 <?php endif; ?>
 
 </body>

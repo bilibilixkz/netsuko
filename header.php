@@ -12,8 +12,8 @@
             'author'    =>  _t('%s 发布的文章')
         ), '', ' - '); ?><?php $this->options->title(); ?></title>
 
-    <link rel="stylesheet" href="<?php echo netsukoEscape(netsukoTailwindCssUrl()); ?>?v=1.2.1">
-    <link rel="stylesheet" href="<?php $this->options->themeUrl('style.css'); ?>?v=1.2.1">
+    <link rel="stylesheet" href="<?php echo netsukoEscape(netsukoVersionedAssetUrl(netsukoTailwindCssUrl())); ?>">
+    <link rel="stylesheet" href="<?php echo netsukoEscape(netsukoVersionedAssetUrl(netsukoThemeAssetUrl('style.css'))); ?>">
 
     <script>
         if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
