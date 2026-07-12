@@ -164,6 +164,19 @@
         document.documentElement.classList.add('netsuko-page-enter');
     }
 
+    function isInViewport(node) {
+        var rect = node.getBoundingClientRect();
+        return rect.bottom >= 0 && rect.top <= (window.innerHeight || document.documentElement.clientHeight);
+    }
+
+    function revealVisibleMotionTargets(targets) {
+        targets.forEach(function (node) {
+            if (!node.classList.contains('is-visible') && isInViewport(node)) {
+                node.classList.add('is-visible');
+            }
+        });
+    }
+
     function prepareMotionTargets(root) {
         var scope = root || document;
         var targets = $all([
@@ -193,12 +206,22 @@
             node.dataset.netsukoMotion = 'true';
             node.style.setProperty('--netsuko-motion-delay', Math.min(index * 55, 220) + 'ms');
 
+            if (isInViewport(node)) {
+                node.classList.add('is-visible');
+            }
+
             if (motionObserver) {
-                motionObserver.observe(node);
+                if (!node.classList.contains('is-visible')) {
+                    motionObserver.observe(node);
+                }
             } else {
                 node.classList.add('is-visible');
             }
         });
+
+        window.setTimeout(function () {
+            revealVisibleMotionTargets(targets);
+        }, 120);
     }
 
     function initMotionEvents() {
