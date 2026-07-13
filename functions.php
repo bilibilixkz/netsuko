@@ -36,17 +36,6 @@ function themeConfig($form)
     );
     $form->addInput($defaultThumb);
 
-    netsukoConfigSection($form, '设备页面', '为 devices 自定义页面提供默认数据。页面自定义字段 devicesData 或页面正文 JSON 会优先覆盖这里。');
-
-    $devicePageData = new \Typecho\Widget\Helper\Form\Element\Textarea(
-        'devicePageData',
-        NULL,
-        NULL,
-        _t('默认设备数据 JSON'),
-        _t('支持分组、图片、状态、标签、规格与备注。可在页面自定义字段 devicesData 中覆盖。')
-    );
-    $form->addInput($devicePageData);
-
     netsukoConfigSection($form, '静态资源', '选择 Tailwind CSS 与 Fancybox 的加载来源。默认使用主题内置本地资源。');
 
     $assetSourceOptions = array(
@@ -663,7 +652,6 @@ function netsukoConfigBackupTools($form): void {
         'authorAvatar',
         'postFont',
         'defaultThumb',
-        'devicePageData',
         'tailwindAssetSource',
         'tailwindCustomUrl',
         'fancyboxAssetSource',
@@ -1052,15 +1040,6 @@ function themeFields($layout) {
     );
     $layout->addItem($subtitle);
 
-    $devicesData = new \Typecho\Widget\Helper\Form\Element\Textarea(
-        'devicesData',
-        NULL,
-        NULL,
-        _t('设备页面数据 JSON'),
-        _t('仅 devices 页面模板使用。留空时读取页面正文 JSON，再读取后台默认设备数据。')
-    );
-    $layout->addItem($devicesData);
-
     $enableLatex = new \Typecho\Widget\Helper\Form\Element\Radio(
         'enableLatex',
         array(
@@ -1096,35 +1075,25 @@ function netsukoUrl($value, string $fallback = '#') {
 }
 
 function netsukoDevicesPayload($archive): array {
-    $options = \Typecho\Widget::widget('Widget_Options');
-    $sources = [
-        (string) ($archive->fields->devicesData ?? ''),
-        trim((string) ($archive->text ?? '')),
-        (string) ($options->devicePageData ?? '')
-    ];
-    $lastError = '';
-
-    foreach ($sources as $source) {
-        $source = trim($source);
-        if ($source === '') {
-            continue;
-        }
-
-        $parsed = json_decode($source, true);
-        if (json_last_error() !== JSON_ERROR_NONE || !is_array($parsed)) {
-            $lastError = json_last_error_msg();
-            continue;
-        }
-
+    $source = trim((string) ($archive->text ?? ''));
+    if ($source === '') {
         return [
-            'groups' => netsukoNormalizeDeviceGroups($parsed),
-            'error' => ''
+            'groups' => [],
+            'error' => '页面正文为空'
+        ];
+    }
+
+    $parsed = json_decode($source, true);
+    if (json_last_error() !== JSON_ERROR_NONE || !is_array($parsed)) {
+        return [
+            'groups' => [],
+            'error' => json_last_error_msg()
         ];
     }
 
     return [
-        'groups' => [],
-        'error' => $lastError
+        'groups' => netsukoNormalizeDeviceGroups($parsed),
+        'error' => ''
     ];
 }
 

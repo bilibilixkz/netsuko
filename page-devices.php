@@ -131,6 +131,7 @@ $fancyboxAssets = netsukoFancyboxAssets();
     <?php else: ?>
         <div class="p-6 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-500/20 rounded-2xl text-red-600 dark:text-red-400 text-sm leading-relaxed mb-16">
             <strong>设备数据为空或 JSON 无法解析。</strong>
+            请在这个独立页面的正文中填写合法的设备 JSON 数组。
             <?php if ($payload['error']): ?>错误信息：<?php echo netsukoEscape($payload['error']); ?><?php endif; ?>
             <pre class="mt-4 overflow-auto text-xs bg-white/70 dark:bg-black/20 p-4 rounded-xl text-gray-700 dark:text-gray-200"><code>[
   {
